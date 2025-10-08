@@ -1,16 +1,13 @@
 
-// Smooth active link highlight and year
 const links = Array.from(document.querySelectorAll('header nav a'));
 const yearEl = document.getElementById('year');
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-// Mobile menu toggle
 const header = document.querySelector('.site-header');
 document.getElementById('menuToggle').addEventListener('click', () => {
   header.classList.toggle('nav-open');
 });
 
-// IntersectionObserver to highlight current section
 const sections = Array.from(document.querySelectorAll('main section'));
 const byId = id => document.querySelector(`header nav a[href="#${id}"]`);
 const observer = new IntersectionObserver(entries => {
@@ -21,7 +18,6 @@ const observer = new IntersectionObserver(entries => {
 }, { threshold: [0.5] });
 sections.forEach(sec => observer.observe(sec));
 
-// Publications loader
 fetch('data/publications.json')
   .then(r => r.json())
   .then(items => {
@@ -38,7 +34,6 @@ fetch('data/publications.json')
     if (wrap) wrap.textContent = 'Add items to data/publications.json to populate this section.';
   });
 
-// Simple Carousel
 (function () {
   const root = document.querySelector('.carousel');
   if (!root) return;
