@@ -90,37 +90,52 @@
       </div>
     </section>
 
-   <section id="publications" class="section alt">
+    <section id="publications" class="section alt">
       <div class="container narrow">
         <h2>Publications</h2>
-        <p>Selected papers. Full list on Google Scholar.</p>
+        <p>Selected papers. Full list on <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a>.</p>
         <div id="pubList" class="pub-list" aria-live="polite"></div>
       </div>
     </section>
+    
     <script>
       async function loadPubs() {
-        const res = await fetch('/data/publications.json');
-        const pubs = await res.json();
         const list = document.getElementById('pubList');
-        list.innerHTML = pubs.map(p => `
-          <article class="pub-item">
-            <h3 class="pub-title"><a href="${p.link}" target="_blank" rel="noopener">${p.title}</a></h3>
-            <p class="pub-meta">
-              <span class="pub-authors">${p.authors}</span> •
-              <span class="pub-venue">${p.venue}</span> •
-              <span class="pub-year">${p.year}</span>
-            </p>
-          </article>
-        `).join('');
+        try {
+          const res = await fetch('/data/publications.json', { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const pubs = await res.json();
+          list.innerHTML = pubs.map(p => `
+            <article class="pub-item">
+              <h3 class="pub-title">
+                <a href="${p.link}" target="_blank" rel="noopener">${p.title}</a>
+              </h3>
+              <p class="pub-meta">
+                <span class="pub-authors">${p.authors}</span> •
+                <span class="pub-venue">${p.venue}</span> •
+                <span class="pub-year">${p.year}</span>
+              </p>
+            </article>
+          `).join('');
+        } catch (err) {
+          list.innerHTML = `<p class="muted">Could not load publications. Please try again later.</p>`;
+          console.error('Publications load failed:', err);
+        }
       }
-      loadPubs();
+      // If this script is in the body, DOM is ready; otherwise guard it:
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadPubs);
+      } else {
+        loadPubs();
+      }
     </script>
-
+    
     <style>
       .pub-list { display: grid; gap: 1rem; }
       .pub-item { padding: 1rem; border: 1px solid #e6e6e6; border-radius: 12px; background: #fff; }
       .pub-title { margin: 0 0 .25rem; font-size: 1.05rem; }
       .pub-meta { margin: 0; color: #555; font-size: .95rem; }
+        .muted { color: #666; }
     </style>
 
     <section id="teaching" class="section">
