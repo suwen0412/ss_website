@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Name — Research</title>
+  <meta name="description" content="Personal research website for Your Name." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <!-- Header / Nav -->
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="#home">Your<span> Name</span></a>
+      <nav>
+        <a href="#home">Home</a>
+        <a href="#research">Research</a>
+        <a href="#publications">Publications</a>
+        <a href="#teaching">Teaching</a>
+        <a href="#news">News</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Home / Hero with Carousel -->
+    <section id="home" class="section hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <h1>Physics × Network</h1>
+          <p class="lead">The physics of networks, or the network of physics? I study the interplay of complex networks, statistical physics, and quantum information.</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#research">Explore Research</a>
+            <a class="btn" href="#publications">Read Publications</a>
+          </div>
+        </div>
+        <div class="carousel" aria-label="Image carousel">
+          <div class="slides">
+            <figure class="slide current">
+              <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1200&auto=format&fit=crop" alt="Network visualization sample">
+            </figure>
+            <figure class="slide">
+              <img src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1200&auto=format&fit=crop" alt="Quantum inspired art">
+            </figure>
+            <figure class="slide">
+              <img src="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?q=80&w=1200&auto=format&fit=crop" alt="Abstract physics">
+            </figure>
+          </div>
+          <button class="ctrl prev" aria-label="Previous slide">‹</button>
+          <button class="ctrl next" aria-label="Next slide">›</button>
+          <div class="dots" role="tablist" aria-label="Choose slide"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Research -->
+    <section id="research" class="section">
+      <div class="container narrow">
+        <h2>Research</h2>
+        <p>I lead an interdisciplinary program exploring:</p>
+        <ul class="bullets">
+          <li>Quantum networks, communication, and computing.</li>
+          <li>Physical/biological networks and their mathematical principles.</li>
+          <li>Statistical physics of complex systems and network metrics.</li>
+          <li>Open quantum systems and open quantum field theories.</li>
+        </ul>
+
+        <div class="cards">
+          <article class="card">
+            <h3>Quantum Network Routing</h3>
+            <p>Optimizing entanglement distribution with non-shortest paths and percolation-inspired strategies.</p>
+            <a class="card-link" href="#">Project page →</a>
+          </article>
+          <article class="card">
+            <h3>Surface Optimization of Physical Networks</h3>
+            <p>Discovering local design principles using geometric constraints and variational methods.</p>
+            <a class="card-link" href="#">Project page →</a>
+          </article>
+          <article class="card">
+            <h3>Metrics for Complex Systems</h3>
+            <p>Robust network metrics connecting topology to dynamics and function.</p>
+            <a class="card-link" href="#">Project page →</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Publications -->
+    <section id="publications" class="section alt">
+      <div class="container narrow">
+        <h2>Publications</h2>
+        <p>Selected papers. Full list on Google Scholar.</p>
+        <div id="pubList" class="pub-list" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Teaching -->
+    <section id="teaching" class="section">
+      <div class="container narrow">
+        <h2>Teaching</h2>
+        <ul class="timeline">
+          <li>
+            <div class="time">Fall 2025</div>
+            <div class="item">
+              <h3>PHYS 4XXX: Networks in Physics</h3>
+              <p>From graph theory basics to current research problems; projects with real data.</p>
+            </div>
+          </li>
+          <li>
+            <div class="time">Spring 2025</div>
+            <div class="item">
+              <h3>PHYS 5XXX: Quantum Information</h3>
+              <p>Quantum states, channels, and algorithms with an emphasis on communication.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- News -->
+    <section id="news" class="section alt">
+      <div class="container narrow">
+        <h2>News</h2>
+        <ul class="news">
+          <li><strong>Sep, 2025:</strong> Our paper on deterministic entanglement transmission appears in <em>J. Phys. Complexity</em>.</li>
+          <li><strong>Aug, 2025:</strong> Presented at NITMB mathbio convergence conference (Chicago!).</li>
+          <li><strong>Mar, 2025:</strong> Nonconvex entanglement monotone in CV quantum networks published in <em>PRA</em>.</li>
+          <li><strong>Mar, 2025:</strong> Nonshortest paths in quantum networks featured in <em>Science Advances</em>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Contact -->
+    <section id="contact" class="section">
+      <div class="container narrow">
+        <h2>Contact</h2>
+        <div class="contact-grid">
+          <div>
+            <p><strong>Your Name</strong><br>
+            Department / University<br>
+            City, State, Country</p>
+            <p>Email: <a href="mailto:you@example.com">you@example.com</a></p>
+          </div>
+          <form id="contactForm" action="https://formspree.io/f/your-form-id" method="POST">
+            <label>Name<input type="text" name="name" required></label>
+            <label>Email<input type="email" name="email" required></label>
+            <label>Message<textarea name="message" rows="4" required></textarea></label>
+            <button class="btn primary" type="submit">Send</button>
+            <p class="muted small">Form powered by Formspree. Replace the action URL with your endpoint.</p>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© <span id="year"></span> Your Name. Built with a lightweight static template.</p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
