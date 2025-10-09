@@ -182,20 +182,16 @@
             <p>Email: <a href="mailto:sshi5@gsu.edu">sshi5@gsu.edu</a></p>
           </div>
 
-          <form id="contactForm" action="https://formspree.io/f/abcd1234" method="POST">
-            <input type="hidden" name="_subject" value="New message from suwen-website" />
-            <input type="hidden" name="_next" value="https://your-domain.com/thanks.html" />
-            <!-- Honeypot anti-spam (leave hidden) -->
-            <label class="hidden" style="display:none;">Do not fill this out:
-              <input type="text" name="_gotcha">
-            </label>
-        
+          <form id="contactForm" action="https://formspree.io/f/mvgwbyyj" method="POST">
             <label>Name<input type="text" name="name" required></label>
             <label>Email<input type="email" name="email" required></label>
             <label>Message<textarea name="message" rows="4" required></textarea></label>
+
+            <input type="hidden" name="_subject" value="New message from suwen-website">
+            <input type="hidden" name="_next" value="https://<your-domain>/thanks.html">
             <button class="btn primary" type="submit">Send</button>
-            <p class="muted small">Form powered by Formspree.</p>
-            </form>
+          </form>
+
         </div>
       </div>
     </section>
