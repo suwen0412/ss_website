@@ -6,18 +6,20 @@
     "year": 2025,
     "link": "https://link.springer.com/article/10.1007/s42250-024-01154-3"
   },
-  {
-    "title": "Separation-Free Electrogenerated Chemiluminescence Immunoassay Incorporating Target Assistant Proximity Hybridization and Dynamically Competitive Hybridization of a DNA Signal Probe",
-    "authors": "Bing Wang, Suwen Shi, Xiaolin Yang, Yue Wang, Honglan Qi*, Qiang Gao, and Chengxiao Zhang*",
-    "venue": "Analytical Chemistry",
-    "year": 2019,
-    "link": "https://pubs.acs.org/doi/full/10.1021/acs.analchem.9b03662"
-  },
+  
   {
     "title": "Mopir: a machine-learning-oriented data preprocessing pipeline for precise analysis of infrared spectroscopy",
     "authors": "Ziwei Huang, Xingxin Gu, Suwen Shi, Xiangyi Meng, Junjie Hang, Jianli Lin, Claire Chenwen Zhong, Yu Li, Junjie Huang",
     "venue": "Research Square (preprint)",
     "year": 2024,
     "link": "https://www.researchsquare.com/article/rs-4477355/v1"
+  },
+
+  {
+    "title": "Separation-Free Electrogenerated Chemiluminescence Immunoassay Incorporating Target Assistant Proximity Hybridization and Dynamically Competitive Hybridization of a DNA Signal Probe",
+    "authors": "Bing Wang, Suwen Shi, Xiaolin Yang, Yue Wang, Honglan Qi*, Qiang Gao, and Chengxiao Zhang*",
+    "venue": "Analytical Chemistry",
+    "year": 2019,
+    "link": "https://pubs.acs.org/doi/full/10.1021/acs.analchem.9b03662"
   }
 ]
