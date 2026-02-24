@@ -70,3 +70,12 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
   .site-header.nav-open nav { display: block; position:absolute; top:52px; left:0; right:0; background:#fff; padding:12px 16px; border-bottom:1px solid #eee; }
   .site-header.nav-open nav a { display:block; padding:8px 0; }
 }
+
+
+/* Toolkit section helpers */
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.actions { margin-top: 12px; }
+@media (max-width: 900px){
+  .cards { grid-template-columns: 1fr; }
+}
