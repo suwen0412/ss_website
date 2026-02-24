@@ -79,3 +79,11 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 @media (max-width: 900px){
   .cards { grid-template-columns: 1fr; }
 }
+
+/* ---- Toolkit (online converter) ---- */
+.toolkit-ui { margin-top: 1rem; display: grid; gap: .75rem; }
+.toolkit-label { display: grid; gap: .35rem; font-weight: 600; }
+.toolkit-label input[type="file"] { padding: .6rem; border: 1px solid rgba(0,0,0,.15); border-radius: 10px; background: #fff; }
+.toolkit-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.toolkit-check { display: inline-flex; gap: .5rem; align-items: center; font-weight: 600; }
+.toolkit-details summary { cursor: pointer; font-weight: 700; }
