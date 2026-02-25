@@ -1,12 +1,16 @@
 /*
   Gamry .DTA -> Excel converter (client-side)
-  - Parses header key/value lines until first CURVE# TABLE
-  - Parses each CURVE block into a 2D table
-  - Exports an .xlsx workbook using SheetJS (XLSX)
+
+  What it supports (broadly):
+  - Gamry DTA "...\tTABLE" blocks (EIS ZCURVE, OCVCURVE, CV curves, etc.)
+  - Fortran-style D exponents (e.g., 1.23D-04)
+
+  Output:
+  - One Excel sheet per TABLE block
+  - Optional "Header" sheet with key/value metadata parsed from the file header
 
   Notes:
-  - Runs fully in-browser; no uploads.
-  - Supports Fortran-style D exponents (e.g., 1.23D-04).
+  - Runs fully in-browser; your file is processed locally (no upload).
 */
 
 (function () {
@@ -25,8 +29,9 @@
 
   function toFloat(tok) {
     if (tok == null) return NaN;
-    const s = String(tok).replace(/D/g, 'E');
-    const v = Number(s);
+    const s = String(tok).trim().replace(/D/gi, 'E');
+    // Some DTAs use comma as thousands separators occasionally; strip commas.
+    const v = Number(s.replace(/,/g, ''));
     return Number.isFinite(v) ? v : NaN;
   }
 
@@ -37,107 +42,141 @@
     return out.slice(0, 31);
   }
 
-  function looksCurveLine(line) {
-    return /^\s*CURVE\d+\s+TABLE/i.test(line);
+  function splitAny(line) {
+    // DTA tables can be tab-indented; whitespace split works fine.
+    return String(line).trim().split(/\s+/).filter(Boolean);
   }
 
-  function splitTabs(line) {
-    return line.split(/\t+/).filter(x => x !== '');
+  function isTableStart(line) {
+    // Examples:
+    //   OCVCURVE\tTABLE\t39
+    //   ZCURVE\tTABLE
+    //   CURVE1\tTABLE
+    // Accept letters/numbers/underscore in the table name.
+    const m = String(line || '').match(/^\s*([A-Za-z][A-Za-z0-9_]*)(?:\s+|\t+)TABLE\b/i);
+    return m ? m[1] : null;
   }
 
-  function splitSpaces(line) {
-    return line.trim().split(/\s+/).filter(Boolean);
+  function isNumericRow(line) {
+    const s = String(line || '').trim();
+    if (!s) return false;
+    // Typical data rows start with an integer point index.
+    return /^[+-]?\d+(?:\s+|\t+)/.test(s);
   }
 
-  function parseGamryDTA(text) {
-    // Keep original lines (no CR)
-    const lines = text.replace(/\r/g, '').split('\n');
+  function isHeaderKV(line) {
+    // Key/value lines often look like: KEY\tLABEL\tVALUE\t...
+    const parts = String(line || '').split(/\t+/).filter(x => x !== '');
+    return parts.length >= 3 && /^[A-Za-z&]/.test(parts[0]);
+  }
 
+  function parseHeader(lines) {
     const header = {};
-    const curves = [];
+    for (let i = 0; i < lines.length; i++) {
+      const raw = (lines[i] || '').trim();
+      if (!raw) continue;
 
-    let i = 0;
+      // Stop once we hit the first TABLE block
+      if (isTableStart(raw)) break;
+
+      if (!isHeaderKV(raw)) continue;
+
+      const parts = raw.split(/\t+/).filter(x => x !== '');
+      if (parts.length < 3) continue;
+
+      const key = parts[0];
+      const rest = parts.slice(2);
+
+      // Heuristic: collect numeric-ish tokens until we hit a "word" token
+      const vals = [];
+      for (const tok of rest) {
+        const t = String(tok);
+        const startsWithLetterOrAmp = /^[A-Za-z&]/.test(t);
+        const startsWithSignOrDigit = /^[+-]?\d/.test(t);
+        if (startsWithLetterOrAmp && !startsWithSignOrDigit) break;
+        vals.push(t);
+      }
+
+      const nums = vals.map(toFloat).filter(v => !Number.isNaN(v));
+      if (nums.length === 0) header[key] = rest.join(' ').trim();
+      else if (nums.length === 1) header[key] = nums[0];
+      else header[key] = nums;
+    }
+    return header;
+  }
+
+  function parseTables(text) {
+    const lines = text.replace(/\r/g, '').split('\n');
     const n = lines.length;
 
-    // Header: until first curve line
-    while (i < n && !looksCurveLine(lines[i])) {
-      const raw = (lines[i] || '').trim();
-      if (!raw) { i++; continue; }
+    const header = parseHeader(lines);
+    const tables = [];
 
-      const parts = splitTabs(raw);
-      if (parts.length >= 3) {
-        const key = parts[0];
-        const typ = parts[1]; // unused but kept for compatibility
-        const rest = parts.slice(2);
+    let i = 0;
+    while (i < n) {
+      const name = isTableStart(lines[i]);
+      if (!name) { i++; continue; }
 
-        // Match the python logic: stop collecting numeric-ish tokens when we hit a word-ish token
-        const vals = [];
-        for (const tok of rest) {
-          const startsWithLetterOrAmp = /^[A-Za-z&]/.test(tok);
-          const startsWithSignOrDigit = /^[+-]?\d/.test(tok);
-          if (startsWithLetterOrAmp && !startsWithSignOrDigit) break;
-          vals.push(tok);
-        }
+      // Jump to next non-empty line after the TABLE line
+      i++;
+      while (i < n && !(lines[i] || '').trim()) i++;
+      if (i >= n) break;
 
-        const nums = vals.map(toFloat).filter(v => !Number.isNaN(v));
-        if (nums.length === 0) {
-          header[key] = rest.join(' ').trim();
-        } else if (nums.length === 1) {
-          header[key] = nums[0];
-        } else {
-          header[key] = nums;
+      // Column header line (often tab-indented)
+      const colLine = (lines[i] || '').trim();
+      const cols = splitAny(colLine);
+      i++;
+
+      // Units line (optional but common)
+      let units = '';
+      if (i < n) {
+        const maybeUnits = (lines[i] || '').trim();
+        // Units rows often start with "#" or have non-numeric tokens and same count as cols
+        // We'll accept it if it's not a numeric data row.
+        if (maybeUnits && !isNumericRow(maybeUnits) && !isTableStart(maybeUnits)) {
+          units = maybeUnits;
+          i++;
         }
       }
 
-      i++;
-    }
-
-    // Curves
-    while (i < n) {
-      while (i < n && !looksCurveLine(lines[i])) i++;
-      if (i >= n) break;
-
-      // Skip CURVE# TABLE line
-      i++;
-      if (i + 1 >= n) break;
-
-      const colLine = (lines[i] || '').trim();
-      const unitLine = (lines[i + 1] || '').trim();
-      i += 2;
-
-      const cols = splitSpaces(colLine);
       const rows = [];
-
       while (i < n) {
-        const line = (lines[i] || '');
-        if (!line.trim()) break;
-        if (looksCurveLine(line)) break;
+        const line = lines[i] || '';
+        const trimmed = line.trim();
+        if (!trimmed) { i++; break; }
 
-        let row = splitSpaces(line);
-        if (row.length < cols.length) {
-          row = row.concat(Array(cols.length - row.length).fill(''));
-        } else if (row.length > cols.length) {
-          row = row.slice(0, cols.length);
+        // Stop if next table begins
+        if (isTableStart(trimmed)) break;
+
+        // Many DTAs have other header-ish blocks after tables; stop if we leave numeric rows
+        if (!isNumericRow(trimmed)) {
+          // If it's clearly another KEY/VALUE block, end this table.
+          if (isHeaderKV(trimmed)) break;
+          // Otherwise, skip weird lines inside the table.
+          i++;
+          continue;
         }
 
-        // Convert numeric-looking values; keep NaN for blanks/invalids
-        const numRow = row.map(tok => {
-          const cleaned = String(tok).replace(/,/g, '');
-          const v = toFloat(cleaned);
+        let toks = splitAny(trimmed);
+        // Normalize token count to columns
+        if (toks.length < cols.length) {
+          toks = toks.concat(Array(cols.length - toks.length).fill(''));
+        } else if (toks.length > cols.length) {
+          toks = toks.slice(0, cols.length);
+        }
+
+        const numRow = toks.map(tok => {
+          const v = toFloat(tok);
           return Number.isNaN(v) ? null : v;
         });
-
         rows.push(numRow);
         i++;
       }
 
-      curves.push({ cols, rows, units: unitLine });
-
-      // Skip blank lines until next curve
-      while (i < n && !looksCurveLine(lines[i]) && !(lines[i] || '').trim()) i++;
+      tables.push({ name, cols, units, rows });
     }
 
-    return { header, curves };
+    return { header, tables };
   }
 
   function headerToSheetAOA(headerObj) {
@@ -151,19 +190,19 @@
     return aoa;
   }
 
-  function curveToSheetAOA(curve, index) {
+  function tableToSheetAOA(tbl) {
     const aoa = [];
-    aoa.push(curve.cols);
-    // Optional: include units row if present
-    if (curve.units && curve.units.trim()) {
-      const units = splitSpaces(curve.units);
-      // Pad/trim units to columns
-      const unitRow = units.slice(0, curve.cols.length);
-      while (unitRow.length < curve.cols.length) unitRow.push('');
-      aoa.push(unitRow);
+    aoa.push(tbl.cols);
+
+    if (tbl.units && String(tbl.units).trim()) {
+      const unitRow = splitAny(tbl.units);
+      // pad/trim
+      const out = unitRow.slice(0, tbl.cols.length);
+      while (out.length < tbl.cols.length) out.push('');
+      aoa.push(out);
     }
 
-    for (const row of curve.rows) aoa.push(row);
+    for (const r of (tbl.rows || [])) aoa.push(r);
     return aoa;
   }
 
@@ -172,14 +211,12 @@
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Could not read file'));
       reader.onload = () => resolve(String(reader.result || ''));
-      // Many DTAs are latin-1-ish; browsers read as UTF-8 by default.
-      // This usually still works because we mostly parse ASCII tables.
       reader.readAsText(file);
     });
   }
 
   function baseName(filename) {
-    return filename.replace(/\.[^.]+$/, '');
+    return String(filename).replace(/\.[^.]+$/, '');
   }
 
   async function handleConvert() {
@@ -198,29 +235,37 @@
       const text = await readFileAsText(file);
       setStatus('Parsing .DTA…');
 
-      const parsed = parseGamryDTA(text);
-      const curves = parsed.curves || [];
+      const parsed = parseTables(text);
+      const tables = parsed.tables || [];
 
-      if (curves.length === 0) {
-        setStatus('No CURVE tables found in this file. If this is an unusual DTA format, use the desktop version.');
-        convertBtn.disabled = false;
+      if (tables.length === 0) {
+        setStatus('No TABLE blocks found in this .DTA. If it’s a special format, use the desktop version.');
         return;
       }
 
-      setStatus(`Building Excel… (${curves.length} curve${curves.length === 1 ? '' : 's'})`);
+      setStatus(`Building Excel… (${tables.length} table${tables.length === 1 ? '' : 's'})`);
 
       const wb = XLSX.utils.book_new();
 
       if (includeHeaderSheet && includeHeaderSheet.checked) {
         const aoa = headerToSheetAOA(parsed.header || {});
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        XLSX.utils.book_append_sheet(wb, ws, 'Header');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Header');
       }
 
-      curves.forEach((c, idx) => {
-        const aoa = curveToSheetAOA(c, idx + 1);
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        XLSX.utils.book_append_sheet(wb, ws, safeSheetName(`Curve ${idx + 1}`));
+      const usedNames = new Set();
+      tables.forEach((t, idx) => {
+        const aoa = tableToSheetAOA(t);
+        let sheet = safeSheetName(t.name || `Table ${idx + 1}`);
+        // de-dup sheet names
+        if (usedNames.has(sheet)) {
+          const base = sheet.slice(0, 27);
+          let k = 2;
+          while (usedNames.has(safeSheetName(`${base}_${k}`))) k++;
+          sheet = safeSheetName(`${base}_${k}`);
+        }
+        usedNames.add(sheet);
+
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), sheet);
       });
 
       const outName = `${baseName(file.name)}_export.xlsx`;
@@ -229,7 +274,7 @@
       setStatus(`Done! Downloaded: ${outName}`);
     } catch (err) {
       console.error(err);
-      setStatus('Conversion failed. Try the desktop version for this file, or share the DTA format if you want broader support.');
+      setStatus('Conversion failed. If this persists, share the DTA file format and I can extend the parser.');
     } finally {
       convertBtn.disabled = false;
     }

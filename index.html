@@ -231,8 +231,8 @@
   <details class="toolkit-details">
     <summary>What will the Excel contain?</summary>
     <ul class="bullets" style="margin-top:.5rem">
-      <li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each block after <code>CURVE# TABLE</code>)</li>
-      <li><strong>Columns:</strong> exported as-is from the DTA table</li>
+      <li><strong>Sheet per table:</strong> e.g. <code>ZCURVE</code>, <code>OCVCURVE</code>, <code>CURVE1</code> … (each <code>TABLE</code> block in the DTA)</li>
+      <li><strong>Columns:</strong> exported as-is from each DTA table block (works for EIS, CV, CA, etc.)</li>
       <li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
     </ul>
   </details>
