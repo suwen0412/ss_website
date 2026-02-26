@@ -213,7 +213,7 @@
 <details class="toolkit-details">
 <summary>What will the Excel contain?</summary>
 <ul class="bullets" style="margin-top:.5rem">
-<li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each block after <code>CURVE# TABLE</code>)</li>
+<li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block (e.g., <code>ZCURVE TABLE</code>, <code>CURVE1 TABLE</code>))</li>
 <li><strong>Columns:</strong> exported as-is from the DTA table</li>
 <li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
 </ul>
@@ -224,81 +224,20 @@
 <div class="card">
 <h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
 <p>
-    Plot custom equations and overlay them with experimental datasets from Excel/CSV.
-    Everything runs in your browser (no uploads). Supports common functions like
-    <code>exp</code>, <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>log</code>, powers (<code>^</code>), and parentheses.
-  </p>
-<div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
-<div class="tool2-block">
-<div class="tool2-block-head">
-<h4>1) Upload data (Excel/CSV)</h4>
-<span class="muted small">Each sheet/file should contain two columns (x, y). Headers are OK.</span>
-</div>
-<label class="toolkit-label">
-<span>Select one or more files</span>
-<input accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" id="tool2Files" multiple="" type="file"/>
-</label>
-<div aria-live="polite" class="tool2-list" id="tool2DatasetList"></div>
-</div>
-<div class="tool2-block">
-<div class="tool2-block-head">
-<h4>2) Add equation curves</h4>
-<span class="muted small">Example: <code>exp(x/a) + exp(b*x/tan(c))</code></span>
-</div>
-<div class="tool2-row">
-<button class="btn" id="tool2AddEq" type="button">+ Add equation</button>
-<div class="tool2-range">
-<label class="tool2-mini">
-<span>x min</span>
-<input id="tool2XMin" step="any" type="number" value="-1"/>
-</label>
-<label class="tool2-mini">
-<span>x max</span>
-<input id="tool2XMax" step="any" type="number" value="1"/>
-</label>
-<label class="tool2-mini">
-<span>points</span>
-<input id="tool2N" max="5000" min="50" step="50" type="number" value="600"/>
-</label>
-</div>
-</div>
-<div class="tool2-eqs" id="tool2EqList"></div>
-</div>
-<div class="tool2-block">
-<div class="tool2-block-head">
-<h4>3) Figures &amp; overlays</h4>
-<span class="muted small">Assign each dataset/curve to a figure. Up to 10 figures.</span>
-</div>
-<div class="tool2-row">
-<label class="tool2-mini">
-<span># figures</span>
-<input id="tool2FigCount" max="10" min="1" step="1" type="number" value="1"/>
-</label>
-<label class="tool2-check">
-<input checked="" id="tool2ShowLegend" type="checkbox"/>
-          Show legend
-        </label>
-<div class="actions">
-<button class="btn primary" id="tool2Render" type="button">Render / Update plots</button>
-<button class="btn" id="tool2Clear" type="button">Clear</button>
-</div>
-</div>
-<div class="tool2-figsettings" id="tool2FigSettings"></div>
-<p aria-live="polite" class="muted small" id="tool2Status">
-        Tip: upload data, add an equation, then click “Render / Update plots”.
-      </p>
-<div class="plot-grid" id="tool2PlotGrid"></div>
-<details class="toolkit-details">
-<summary>Supported syntax &amp; tips</summary>
-<ul>
-<li>Use <code>x</code> as the independent variable.</li>
-<li>Use parameters like <code>a</code>, <code>b</code>, <code>c</code> anywhere in the expression; they’ll appear as editable inputs.</li>
-<li>Functions: <code>exp</code>, <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>asin</code>, <code>acos</code>, <code>atan</code>, <code>log</code>, <code>ln</code>, <code>sqrt</code>, <code>abs</code>.</li>
-<li>Powers: <code>x^2</code>. Constants: <code>pi</code>, <code>e</code>.</li>
-<li>If you want to use uploaded data’s <code>x</code> values for an equation, set the equation’s <em>x source</em> to “from dataset”.</li>
+  Plot custom equations and overlay them with experimental datasets from Excel/CSV.
+  To keep this page uncluttered, the visualizer opens in a separate tab/window.
+  Everything runs locally in your browser (no uploads).
+</p>
+<ul class="bullets">
+  <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
+  <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
+  <li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
 </ul>
-</details>
+<div class="actions">
+  <a class="btn primary" href="tool2.html" target="_blank" rel="noopener">Open Tool 2 (new window)</a>
+  <a class="btn" href="tool2.html">Open in this tab</a>
 </div>
+<p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
 </div>
 </div>
 </div>
@@ -341,7 +280,7 @@
     })();
   </script>
 <!-- XLSX (SheetJS) for in-browser Excel export -->
-<script defer="" src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script defer="" src="https://cdn.jsdelivr.net/npm/mathjs@11.11.2/lib/browser/math.js"></script><script defer="" src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script><script defer="" src="assets/js/tool2.js"></script>
+<script defer="" src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- Toolkit converter logic -->
 <script defer="" src="assets/js/toolkit.js"></script>
 <!-- Your site JS (menu, carousel, etc.) -->
