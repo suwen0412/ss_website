@@ -93,13 +93,13 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 /* ===== Tool 2 split layout (controls left, plots right) ===== */
 .tool2-layout{
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: var(--tool2-left-w, 320px) 12px minmax(0, 1fr);
+  gap: 0;
   align-items: start;
   margin-top: 1rem;
   min-height: calc(100vh - 220px);
+  min-width: 820px;
 }
-
 /* Left controls panel */
 .tool2-left{
   grid-column: 1;
@@ -108,15 +108,15 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
   align-self: start;
   max-height: calc(100vh - 140px);
   overflow: auto;
-  padding-right: .35rem;
+  padding-right: 1.0rem;
+  border-right: 1px solid rgba(0,0,0,.08);
 }
-
 /* Right plots area */
 .tool2-right{
-  grid-column: 2;
-  min-width: 0; /* allow Plotly to shrink without overflow */
+  grid-column: 3;
+  min-width: 0;
+  padding-left: 1.25rem;
 }
-
 /* Left controls panel */
 .tool2-left{
   flex: 0 0 340px;
@@ -174,3 +174,28 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 @media (max-width: 500px) {
   .plot-box .plot { height: 420px; }
 }
+
+.tool2-splitter{
+  grid-column: 2;
+  height: 100%;
+  cursor: col-resize;
+  position: relative;
+}
+.tool2-splitter:before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(0,0,0,.18);
+}
+.tool2-splitter:hover:before{
+  background: rgba(0,0,0,.32);
+}
+
+.plot-box{ width:100%; }
+
+body.tool2-dragging{ cursor: col-resize; user-select: none; }

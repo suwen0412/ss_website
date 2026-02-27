@@ -24,7 +24,71 @@
   }
   
   let _rzT = null;
-  window.addEventListener("resize", () => {
+  function initSplitter() {
+  const layout = document.querySelector(".tool2-layout");
+  const split = document.querySelector(".tool2-splitter");
+  if (!layout || !split) return;
+
+  // Restore width
+  try {
+    const saved = localStorage.getItem("tool2_left_w");
+    if (saved) {
+      const px = Math.max(240, Math.min(520, parseInt(saved, 10)));
+      layout.style.setProperty("--tool2-left-w", px + "px");
+    }
+  } catch (e) {}
+
+  let dragging = false;
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const rect = layout.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    const newW = clamp(x - rect.left, 240, 520);
+    layout.style.setProperty("--tool2-left-w", newW + "px");
+    try { localStorage.setItem("tool2_left_w", String(Math.round(newW))); } catch (err) {}
+    resizeAllPlots();
+    e.preventDefault();
+  };
+
+  const onUp = () => {
+    dragging = false;
+    document.body.classList.remove("tool2-dragging");
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    window.removeEventListener("touchmove", onMove, { passive: false });
+    window.removeEventListener("touchend", onUp);
+  };
+
+  const onDown = (e) => {
+    dragging = true;
+    document.body.classList.add("tool2-dragging");
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    e.preventDefault();
+  };
+
+  split.addEventListener("mousedown", onDown);
+  split.addEventListener("touchstart", onDown, { passive: false });
+
+  // Keyboard resize
+  split.addEventListener("keydown", (e) => {
+    const step = (e.shiftKey ? 20 : 10);
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const current = parseInt(getComputedStyle(layout).getPropertyValue("--tool2-left-w")) || 320;
+    const next = clamp(current + (e.key === "ArrowRight" ? step : -step), 240, 520);
+    layout.style.setProperty("--tool2-left-w", next + "px");
+    try { localStorage.setItem("tool2_left_w", String(Math.round(next))); } catch (err) {}
+    resizeAllPlots();
+    e.preventDefault();
+  });
+}
+
+window.addEventListener("resize", () => {
     clearTimeout(_rzT);
     _rzT = setTimeout(resizeAllPlots, 80);
   });
@@ -190,7 +254,8 @@
     }
 
     updateDatasetUI();
-    updateEqUI(); // refresh dataset dropdowns inside equations
+    updateEqUI();
+  initSplitter(); // refresh dataset dropdowns inside equations
     setStatus(added ? `Loaded ${added} dataset(s). Assign them to figures and click “Render / Update plots”.` : "No numeric two-column datasets found in the uploaded files.");
   }
 
