@@ -943,7 +943,6 @@ function renderFloatFromFigure(fig) {
   setTimeout(() => { try { Plotly.Plots.resize(elFloatPlot); } catch(e){} }, 0);
 }
 
-}
 
 function persistFloatGeometry() {
   if (!elFloatWin) return;
