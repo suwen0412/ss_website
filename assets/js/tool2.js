@@ -135,6 +135,7 @@ window.addEventListener("resize", () => {
     datasets: [], // {id, name, x, y, fig, enabled}
     eqs: [],      // {id, name, expr, params:{}, compiled, fig, enabled, xMode:'range'|'dataset', datasetId:null}
     figMeta: [],  // [{title,xlabel,ylabel}]
+    plotSpecs: [], // per-figure {traces, layout} used for floating preview
     hasRendered: false,
     _renderQueued: false
   };
@@ -876,26 +877,72 @@ function renderFloatFromFigure(fig) {
   const n = clampInt(elFigCount.value, 1, MAX_FIGS);
   fig = clampInt(fig, 1, n);
 
-  // Grab the current figure plot spec by reading the plot div data (reliable after first render)
-  const srcDiv = $(`tool2Fig${fig}`);
-  if (!srcDiv || !(srcDiv.data || srcDiv._fullLayout)) return;
+  const meta = state.figMeta[fig - 1] || { title: `Figure ${fig}`, xlabel: "x", ylabel: "y" };
 
-  // Use Plotly.react to mirror it
-  const data = (srcDiv.data || []).map(t => Object.assign({}, t));
-  const layout = Object.assign({}, (srcDiv.layout || {}));
-  // Keep title consistent
-  const meta = state.figMeta[fig - 1] || { title: `Figure ${fig}` };
+  // Prefer our saved specs (most reliable)
+  const spec = (state.plotSpecs && state.plotSpecs[fig - 1]) ? state.plotSpecs[fig - 1] : null;
+
+  let data = [];
+  let layout = {};
+
+  if (spec && spec.traces && spec.layout) {
+    data = (spec.traces || []).map(t => Object.assign({}, t));
+    layout = JSON.parse(JSON.stringify(spec.layout || {}));
+  } else {
+    // Fallback: try to read from Plotly div (some builds don't expose div.data)
+    const srcDiv = $(`tool2Fig${fig}`);
+    const srcData = (srcDiv && (srcDiv.data || srcDiv._fullData)) ? (srcDiv.data || srcDiv._fullData) : [];
+    const srcLayout = (srcDiv && (srcDiv.layout || srcDiv._fullLayout)) ? (srcDiv.layout || srcDiv._fullLayout) : {};
+    data = (srcData || []).map(t => Object.assign({}, t));
+    // Keep only the essential layout pieces to avoid cloning Plotly internals
+    layout = {
+      margin: srcLayout.margin,
+      xaxis: srcLayout.xaxis,
+      yaxis: srcLayout.yaxis,
+      showlegend: srcLayout.showlegend,
+      legend: srcLayout.legend
+    };
+  }
+
+  // Enforce titles/labels from current UI
+  layout = layout || {};
   layout.title = { text: meta.title || `Figure ${fig}` };
   layout.margin = layout.margin || { l: 60, r: 20, t: 45, b: 55 };
+  layout.xaxis = layout.xaxis || {};
+  layout.xaxis.title = { text: meta.xlabel || "x" };
+  layout.yaxis = layout.yaxis || {};
+  layout.yaxis.title = { text: meta.ylabel || "y" };
+  layout.showlegend = !!(elShowLegend && elShowLegend.checked);
+  layout.legend = layout.legend || { orientation: "h" };
 
   const config = { responsive: true, displaylogo: false };
-  Plotly.react(elFloatPlot, data, layout, config);
+
+  if (!data || !data.length) {
+    // Placeholder (helps when user enables floating before first Render)
+    const ph = {
+      title: { text: meta.title || `Figure ${fig}` },
+      margin: { l: 60, r: 20, t: 45, b: 55 },
+      xaxis: { title: { text: meta.xlabel || "x" } },
+      yaxis: { title: { text: meta.ylabel || "y" } },
+      annotations: [{
+        text: "Nothing to preview yet. Click Render to generate plots.",
+        showarrow: false,
+        x: 0.5, y: 0.5,
+        xref: "paper", yref: "paper"
+      }]
+    };
+    Plotly.react(elFloatPlot, [], ph, config);
+  } else {
+    Plotly.react(elFloatPlot, data, layout, config);
+  }
 
   if (elFloatTitle) elFloatTitle.textContent = `Floating preview — Figure ${fig}`;
   updateFloatEq(fig, n);
 
   // resize after render
   setTimeout(() => { try { Plotly.Plots.resize(elFloatPlot); } catch(e){} }, 0);
+}
+
 }
 
 function persistFloatGeometry() {
@@ -1111,6 +1158,12 @@ function initFloatUI() {
       const traces = tracesByFig[i - 1];
       if (traces.length) renderedAny = true;
 
+      // store spec for floating preview (do not rely on Plotly internal div fields)
+      state.plotSpecs[i - 1] = {
+        traces: (traces || []).map(t => Object.assign({}, t)),
+        layout: JSON.parse(JSON.stringify(layout))
+      };
+
       Plotly.react(div, traces, layout, config);
     }
 
@@ -1135,6 +1188,7 @@ function initFloatUI() {
     elPlotGrid.innerHTML = "";
     setStatus("Cleared.");
     state.hasRendered = false;
+    state.plotSpecs = [];
     state._renderQueued = false;
   }
 
@@ -1164,6 +1218,7 @@ function initFloatUI() {
     updateDatasetUI();
     updateEqUI();
     updateParamSlidersUI();
+    fillFloatFigOptions();
     scheduleRender();
   });
 
