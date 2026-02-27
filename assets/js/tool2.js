@@ -1247,5 +1247,6 @@ function initFloatUI() {
   updateFigSettingsUI();
   updateDatasetUI();
   updateEqUI();
+  initFloatUI();
   setStatus("Tip: upload data, add an equation, then click “Render / Update plots”.");
 })();
