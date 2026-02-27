@@ -92,14 +92,30 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 /* ---- Tool 2 (Equation + Data Visualizer) ---- */
 /* ===== Tool 2 split layout (controls left, plots right) ===== */
 .tool2-layout{
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 1.25rem;
-  align-items: stretch;
+  align-items: start;
   margin-top: 1rem;
   min-height: calc(100vh - 220px);
 }
 
+/* Left controls panel */
+.tool2-left{
+  grid-column: 1;
+  position: sticky;
+  top: 14px;
+  align-self: start;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  padding-right: .35rem;
+}
+
+/* Right plots area */
+.tool2-right{
+  grid-column: 2;
+  min-width: 0; /* allow Plotly to shrink without overflow */
+}
 
 /* Left controls panel */
 .tool2-left{
@@ -124,10 +140,7 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 }
 .tool2-right .plot-grid{ margin-top: 0; }
 
-/* Only stack on very small screens */
-@media (max-width: 520px){
-  .tool2-layout{ flex-direction: column; }
-  .tool2-left{
+.tool2-left{
     position: relative;
     top: auto;
     max-height: none;

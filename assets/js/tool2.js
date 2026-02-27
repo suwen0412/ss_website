@@ -7,6 +7,29 @@
   - Plotly renders plots in-browser (no uploads)
 */
 (function () {
+
+  function resizeAllPlots() {
+    try {
+      if (!window.Plotly) return;
+      const divs = document.querySelectorAll("#tool2PlotGrid .plot");
+      divs.forEach((div) => {
+        // Plotly attaches data/layout onto the div once rendered
+        if (div && (div.data || div._fullLayout)) {
+          window.Plotly.Plots.resize(div);
+        }
+      });
+    } catch (e) {
+      // no-op
+    }
+  }
+  
+  let _rzT = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(_rzT);
+    _rzT = setTimeout(resizeAllPlots, 80);
+  });
+  
+  
   const MAX_FIGS = 10;
 
   const $ = (id) => document.getElementById(id);
@@ -737,6 +760,8 @@
     updateEquationDisplays(n);
     state.hasRendered = true;
 
+    resizeAllPlots();
+
     setStatus(renderedAny ? "Plots updated." : "Nothing to plot yet. Enable at least one dataset or equation.");
   }
 
@@ -792,6 +817,8 @@
     try {
       renderPlots();
       state.hasRendered = true;
+
+    resizeAllPlots();
     } catch (e) {
       console.error(e);
       setStatus("Render failed. Check your equation syntax and uploaded data.");

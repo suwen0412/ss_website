@@ -22,6 +22,24 @@
     body.tool2-full .toolpage-wrap { padding: 22px 0 28px; }
     body.tool2-full .toolpage-card .card { padding: 14px; }
 
+
+/* Hard override (Desmos-like): keep controls left, plots right */
+body.tool2-full .tool2-layout{
+  display: grid !important;
+  grid-template-columns: 360px minmax(0, 1fr) !important;
+  gap: 1.25rem !important;
+  align-items: start !important;
+}
+body.tool2-full .tool2-left{
+  position: sticky !important;
+  top: 14px !important;
+  max-height: calc(100vh - 140px) !important;
+  overflow: auto !important;
+}
+body.tool2-full .tool2-right{ min-width: 0 !important; }
+@media (max-width: 360px){
+  body.tool2-full .tool2-layout{ grid-template-columns: 320px minmax(0, 1fr) !important; }
+}
   </style>
 </head>
 <body class=\"tool2-full\">
