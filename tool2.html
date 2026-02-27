@@ -42,7 +42,9 @@
       <div class="toolpage-card">
         <div class="card">
           
-<div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
+<div class="tool2-layout">
+  <div class="tool2-left">
+    <div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
   <div class="tool2-block">
     <div class="tool2-block-head">
       <h4>1) Upload data (Excel/CSV)</h4>
@@ -113,8 +115,6 @@
       Tip: upload data, add an equation, then click “Render / Update plots”.
     </p>
 
-    <div id="tool2PlotGrid" class="plot-grid"></div>
-
     <details class="toolkit-details">
       <summary>Supported syntax &amp; tips</summary>
       <ul>
@@ -126,6 +126,16 @@
       </ul>
     </details>
   </div>
+  </div>
+
+  <div class="tool2-right">
+    <div class="tool2-right-head">
+      <h4 style="margin:0;">Visualization</h4>
+      <p class="muted small" style="margin:.25rem 0 0;">Plots update instantly when you drag parameters (after your first Render).</p>
+    </div>
+    <div id="tool2PlotGrid" class="plot-grid"></div>
+  </div>
+</div>
 </div>
 
         </div>

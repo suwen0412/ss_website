@@ -53,6 +53,17 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  const round3 = (v) => {
+    const n = num(v, 0);
+    return Math.round(n * 1000) / 1000;
+  };
+
+  const fmt3 = (v) => {
+    const n = num(v, NaN);
+    if (!Number.isFinite(n)) return "";
+    return n.toFixed(3);
+  };
+
   const setStatus = (msg) => { if (elStatus) elStatus.textContent = msg; };
 
   function scheduleRender() {
@@ -351,14 +362,14 @@
         <div class="tool2-param" data-p="${escapeHtml(k)}">
           <div class="param-head">
             <span class="param-name">${escapeHtml(k)}</span>
-            <span class="param-valtext">${Number.isFinite(v) ? v : 1}</span>
+            <span class="param-valtext">${fmt3(v)}</span>
           </div>
-          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${v}" />
+          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${Math.max(r.step, 0.001)}" value="${round3(v)}" />
           <div class="param-inline">
-            <input class="param-val" type="number" step="any" value="${v}" />
+            <input class="param-val" type="number" step="0.001" value="${fmt3(v)}" />
             <button class="btn tiny param-rescale" type="button" title="Rescale slider around current value">Rescale</button>
           </div>
-          <div class="param-range muted small">${r.min.toPrecision(4)} ↔ ${r.max.toPrecision(4)}</div>
+          <div class="param-range muted small">${fmt3(r.min)} ↔ ${fmt3(r.max)}</div>
         </div>
       `;
     }).join("");
@@ -518,10 +529,10 @@
       const btnRescale = card.querySelector(".param-rescale");
 
       function setVal(v) {
-        const nv = num(v, 1);
+        const nv = round3(num(v, 1));
         eq.params[key] = nv;
-        if (inp) inp.value = nv;
-        if (valText) valText.textContent = String(nv);
+        if (inp) inp.value = fmt3(nv);
+        if (valText) valText.textContent = fmt3(nv);
         if (slider) slider.value = nv;
         scheduleRender();
       }
@@ -625,7 +636,7 @@
         const params = e.params || {};
         const pkeys = Object.keys(params);
         const ptxt = pkeys.length
-          ? pkeys.map(k => `${escapeHtml(k)}=${escapeHtml(params[k])}`).join(", ")
+          ? pkeys.map(k => `${escapeHtml(k)}=${escapeHtml(fmt3(params[k]))}`).join(", ")
           : "";
 
         const label = e.name ? escapeHtml(e.name) : `Equation ${idx + 1}`;
