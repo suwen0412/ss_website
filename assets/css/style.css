@@ -93,18 +93,21 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 /* ===== Tool 2 split layout (controls left, plots right) ===== */
 .tool2-layout{
   display: flex;
+  flex-wrap: nowrap;
   gap: 1.25rem;
-  align-items: flex-start;
+  align-items: stretch;
   margin-top: 1rem;
+  min-height: calc(100vh - 220px);
 }
+
 
 /* Left controls panel */
 .tool2-left{
-  flex: 0 0 380px;
+  flex: 0 0 340px;
   position: sticky;
   top: 14px;
   align-self: flex-start;
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 140px);
   overflow: auto;
   padding-right: .35rem;
 }
@@ -122,7 +125,7 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 .tool2-right .plot-grid{ margin-top: 0; }
 
 /* Only stack on very small screens */
-@media (max-width: 760px){
+@media (max-width: 520px){
   .tool2-layout{ flex-direction: column; }
   .tool2-left{
     position: relative;
@@ -150,11 +153,11 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 
 .plot-grid { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
 .plot-box { border: 1px solid rgba(0,0,0,.12); border-radius: 14px; background: #fff; padding: .35rem; }
-.plot-box .plot { width: 100%; height: 420px; }
+.plot-box .plot { width: 100%; height: 520px; }
 .plot-eq { border-top: 1px solid rgba(0,0,0,.08); padding: .55rem .7rem .7rem; }
 .plot-eq code { white-space: normal; }
 .plot-eq .eq-row + .eq-row { margin-top: .55rem; }
 .plot-eq .eq-name { font-weight: 800; }
 @media (max-width: 500px) {
-  .plot-box .plot { height: 360px; }
+  .plot-box .plot { height: 420px; }
 }
