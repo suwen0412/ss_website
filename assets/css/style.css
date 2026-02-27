@@ -253,7 +253,7 @@ body.tool2-dragging{ cursor: col-resize; user-select: none; }
 
 
 /* Floating preview window (Tool 2) */
-.tool2-float-controls{
+.tool2-float-controls{ flex-wrap:wrap;
   display:flex;
   gap: 12px;
   align-items:center;

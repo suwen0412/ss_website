@@ -116,6 +116,7 @@ window.addEventListener("resize", () => {
   const elClear  = $("tool2Clear");
   const elStatus = $("tool2Status");
   const elPlotGrid = $("tool2PlotGrid");
+  const elAutoFloat = $("tool2AutoFloat");
 
   const elFloatToggle = $("tool2FloatToggle");
   const elFloatFig = $("tool2FloatFig");
@@ -131,7 +132,8 @@ window.addEventListener("resize", () => {
 
   // ---- State ----
   const state = {
-    float: { enabled: false, fig: 1, left: null, top: null, w: null, h: null },
+    float: {
+      autoFloat: true, enabled: false, fig: 1, left: null, top: null, w: null, h: null },
     datasets: [], // {id, name, x, y, fig, enabled}
     eqs: [],      // {id, name, expr, params:{}, compiled, fig, enabled, xMode:'range'|'dataset', datasetId:null}
     figMeta: [],  // [{title,xlabel,ylabel}]
@@ -268,6 +270,7 @@ window.addEventListener("resize", () => {
     updateDatasetUI();
     updateEqUI();
   initFloatUI();
+  initAutoFloat();
   initSplitter(); // refresh dataset dropdowns inside equations
     setStatus(added ? `Loaded ${added} dataset(s). Assign them to figures and click “Render / Update plots”.` : "No numeric two-column datasets found in the uploaded files.");
   }
@@ -1077,6 +1080,88 @@ function initFloatUI() {
     ro.observe(elFloatWin);
   } catch(e) {}
 }
+
+
+function isAnyFigureFullyVisible() {
+  const n = clampInt(elFigCount.value, 1, MAX_FIGS);
+  for (let i = 1; i <= n; i++) {
+    const div = $(`tool2Fig${i}`);
+    if (!div) continue;
+    const r = div.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const fully = (r.top >= 0 && r.left >= 0 && r.bottom <= vh && r.right <= vw);
+    if (fully) return true;
+  }
+  return false;
+}
+
+function initAutoFloat() {
+  if (!elAutoFloat) return;
+
+  // restore preference
+  try {
+    const raw = localStorage.getItem("tool2_auto_float");
+    if (raw !== null) {
+      const v = raw === "true";
+      state.float.autoFloat = v;
+      elAutoFloat.checked = v;
+    } else {
+      state.float.autoFloat = true;
+      elAutoFloat.checked = true;
+    }
+  } catch(e) {}
+
+  elAutoFloat.addEventListener("change", () => {
+    state.float.autoFloat = !!elAutoFloat.checked;
+    try { localStorage.setItem("tool2_auto_float", String(state.float.autoFloat)); } catch(e) {}
+  });
+
+  // Track whether floating was auto-enabled so we can auto-hide politely
+  let autoOn = false;
+
+  const debounce = (() => {
+    let t = 0;
+    return (fn) => {
+      clearTimeout(t);
+      t = setTimeout(fn, 180);
+    };
+  })();
+
+  function evaluate() {
+    if (!state.float.autoFloat) return;
+
+    const should = !isAnyFigureFullyVisible();
+
+    if (should && !state.float.enabled) {
+      state.float.enabled = true;
+      autoOn = true;
+      if (elFloatToggle) elFloatToggle.checked = true;
+      floatSetVisible(true);
+      persistFloatGeometry();
+      if (state.hasRendered) renderFloatFromFigure(state.float.fig || 1);
+    } else if (!should && autoOn && state.float.enabled) {
+      // Only auto-hide if we were the one that turned it on
+      state.float.enabled = false;
+      if (elFloatToggle) elFloatToggle.checked = false;
+      floatSetVisible(false);
+      persistFloatGeometry();
+      autoOn = false;
+    }
+  }
+
+  const maybe = () => debounce(evaluate);
+
+  if ("IntersectionObserver" in window && elPlotGrid) {
+    const obs = new IntersectionObserver(() => maybe(), { root: null, threshold: [0, 0.1, 0.25, 0.5, 1] });
+    obs.observe(elPlotGrid);
+  }
+  window.addEventListener("scroll", maybe, { passive: true });
+  window.addEventListener("resize", maybe);
+
+  setTimeout(evaluate, 220);
+}
+
 
 // ---- Rendering ----
   function linspace(a, b, n) {
