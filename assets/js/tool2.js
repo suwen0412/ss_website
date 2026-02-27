@@ -36,7 +36,9 @@
   const state = {
     datasets: [], // {id, name, x, y, fig, enabled}
     eqs: [],      // {id, name, expr, params:{}, compiled, fig, enabled, xMode:'range'|'dataset', datasetId:null}
-    figMeta: []   // [{title,xlabel,ylabel}]
+    figMeta: [],  // [{title,xlabel,ylabel}]
+    hasRendered: false,
+    _renderQueued: false
   };
 
   const uid = () => "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
@@ -52,6 +54,22 @@
   };
 
   const setStatus = (msg) => { if (elStatus) elStatus.textContent = msg; };
+
+  function scheduleRender() {
+    // Live update only after the first explicit render.
+    if (!state.hasRendered) return;
+    if (state._renderQueued) return;
+    state._renderQueued = true;
+    requestAnimationFrame(() => {
+      state._renderQueued = false;
+      try {
+        renderPlots();
+      } catch (e) {
+        console.error(e);
+        setStatus("Live update failed. Check your equation syntax and parameter values.");
+      }
+    });
+  }
 
   function safeSheetToRows(ws) {
     try {
@@ -238,6 +256,17 @@
       .replaceAll("'", "&#039;");
   }
 
+  function autoRangeFor(v) {
+    // Create a slider range centered on v.
+    const val = num(v, 1);
+    const base = Math.max(1, Math.abs(val));
+    const span = base * 2.5;
+    const min = val - span;
+    const max = val + span;
+    const step = Math.max(1e-6, (max - min) / 300);
+    return { min, max, step };
+  }
+
   function updateDatasetUI() {
     if (!elDatasetList) return;
 
@@ -281,15 +310,18 @@
 
       row.querySelector(".ds-enabled").addEventListener("change", (e) => {
         d.enabled = !!e.target.checked;
+        scheduleRender();
       });
 
       row.querySelector(".ds-name").addEventListener("input", (e) => {
         d.name = e.target.value;
         updateEqUI(); // keep dataset names in eq dropdown
+        scheduleRender();
       });
 
       row.querySelector(".figsel").addEventListener("change", (e) => {
         d.fig = clampInt(e.target.value, 1, MAX_FIGS);
+        scheduleRender();
       });
 
       row.querySelector(".ds-remove").addEventListener("click", () => {
@@ -298,6 +330,7 @@
         state.eqs.forEach(eq => { if (eq.datasetId === id) eq.datasetId = ""; });
         updateDatasetUI();
         updateEqUI();
+        scheduleRender();
       });
     });
   }
@@ -306,13 +339,27 @@
     const keys = Object.keys(eq.params || {});
     if (!keys.length) return `<div class="muted small">No parameters detected (only <code>x</code>).</div>`;
 
+    // Ensure eq has slider range settings
+    if (!eq.paramRanges) eq.paramRanges = {};
+
     return keys.map((k) => {
-      const v = eq.params[k];
+      const v = num(eq.params[k], 1);
+      if (!eq.paramRanges[k]) eq.paramRanges[k] = autoRangeFor(v);
+      const r = eq.paramRanges[k];
+
       return `
-        <label class="tool2-mini param" data-p="${escapeHtml(k)}">
-          <span>${escapeHtml(k)}</span>
-          <input class="param-val" type="number" step="any" value="${Number.isFinite(v) ? v : 1}" />
-        </label>
+        <div class="tool2-param" data-p="${escapeHtml(k)}">
+          <div class="param-head">
+            <span class="param-name">${escapeHtml(k)}</span>
+            <span class="param-valtext">${Number.isFinite(v) ? v : 1}</span>
+          </div>
+          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${v}" />
+          <div class="param-inline">
+            <input class="param-val" type="number" step="any" value="${v}" />
+            <button class="btn tiny param-rescale" type="button" title="Rescale slider around current value">Rescale</button>
+          </div>
+          <div class="param-range muted small">${r.min.toPrecision(4)} ↔ ${r.max.toPrecision(4)}</div>
+        </div>
       `;
     }).join("");
   }
@@ -392,15 +439,18 @@
 
       elEnabled.addEventListener("change", (e) => { eq.enabled = !!e.target.checked; });
 
-      elFigSel.addEventListener("change", (e) => { eq.fig = clampInt(e.target.value, 1, MAX_FIGS); });
+      elEnabled.addEventListener("change", () => scheduleRender());
+
+      elFigSel.addEventListener("change", (e) => { eq.fig = clampInt(e.target.value, 1, MAX_FIGS); scheduleRender(); });
 
       elXMode.addEventListener("change", (e) => {
         eq.xMode = e.target.value;
         elDsWrap.style.display = (eq.xMode === "dataset") ? "" : "none";
+        scheduleRender();
       });
 
       if (elDsSel) {
-        elDsSel.addEventListener("change", (e) => { eq.datasetId = e.target.value; });
+        elDsSel.addEventListener("change", (e) => { eq.datasetId = e.target.value; scheduleRender(); });
       }
 
       function refreshParamsFromExpr() {
@@ -418,37 +468,81 @@
 
         // preserve existing values when possible
         const next = {};
+        const nextRanges = {};
         for (const p of params) {
           next[p] = (eq.params && Object.prototype.hasOwnProperty.call(eq.params, p)) ? eq.params[p] : 1;
+          // preserve ranges if the param existed
+          if (eq.paramRanges && eq.paramRanges[p]) nextRanges[p] = eq.paramRanges[p];
         }
         eq.params = next;
+        eq.paramRanges = nextRanges;
         eq.compiled = null; // recompile later
         elParams.innerHTML = paramInputsHTML(eq);
 
-        // bind param inputs
-        elParams.querySelectorAll(".param").forEach((pwrap) => {
-          const key = pwrap.getAttribute("data-p");
-          const inp = pwrap.querySelector(".param-val");
-          inp.addEventListener("input", (e) => {
-            eq.params[key] = num(e.target.value, 1);
-          });
-        });
+        bindParamControls(elParams, eq);
+        scheduleRender();
       }
 
       elExpr.addEventListener("change", refreshParamsFromExpr);
       elDetect.addEventListener("click", refreshParamsFromExpr);
 
-      // bind existing param inputs
-      elParams.querySelectorAll(".param").forEach((pwrap) => {
-        const key = pwrap.getAttribute("data-p");
-        const inp = pwrap.querySelector(".param-val");
-        inp.addEventListener("input", (e) => { eq.params[key] = num(e.target.value, 1); });
-      });
+      // bind existing param inputs/sliders
+      bindParamControls(elParams, eq);
 
       elRemove.addEventListener("click", () => {
         state.eqs = state.eqs.filter(x => x.id !== id);
         updateEqUI();
+        scheduleRender();
       });
+
+      // Live update for eq expression changes
+      elExpr.addEventListener("input", () => {
+        // Don't re-detect params on every keystroke; just recompile on render.
+        eq.expr = elExpr.value || "";
+        eq.compiled = null;
+        scheduleRender();
+      });
+    });
+  }
+
+  function bindParamControls(container, eq) {
+    if (!container) return;
+    container.querySelectorAll(".tool2-param").forEach((card) => {
+      const key = card.getAttribute("data-p");
+      if (!key) return;
+
+      const slider = card.querySelector(".param-slider");
+      const inp = card.querySelector(".param-val");
+      const valText = card.querySelector(".param-valtext");
+      const rangeText = card.querySelector(".param-range");
+      const btnRescale = card.querySelector(".param-rescale");
+
+      function setVal(v) {
+        const nv = num(v, 1);
+        eq.params[key] = nv;
+        if (inp) inp.value = nv;
+        if (valText) valText.textContent = String(nv);
+        if (slider) slider.value = nv;
+        scheduleRender();
+      }
+
+      if (slider) {
+        slider.addEventListener("input", (e) => setVal(e.target.value));
+      }
+      if (inp) {
+        inp.addEventListener("input", (e) => setVal(e.target.value));
+      }
+      if (btnRescale && slider) {
+        btnRescale.addEventListener("click", () => {
+          const r = autoRangeFor(eq.params[key]);
+          eq.paramRanges = eq.paramRanges || {};
+          eq.paramRanges[key] = r;
+          slider.min = r.min;
+          slider.max = r.max;
+          slider.step = r.step;
+          if (rangeText) rangeText.textContent = `${r.min.toPrecision(4)} ↔ ${r.max.toPrecision(4)}`;
+        });
+      }
     });
   }
 
@@ -489,9 +583,9 @@
     elFigSettings.querySelectorAll(".tool2-item.fig").forEach((row) => {
       const k = clampInt(row.getAttribute("data-fig"), 1, MAX_FIGS);
       const m = state.figMeta[k - 1];
-      row.querySelector(".fig-title").addEventListener("input", (e) => { m.title = e.target.value; });
-      row.querySelector(".fig-xlab").addEventListener("input", (e) => { m.xlabel = e.target.value; });
-      row.querySelector(".fig-ylab").addEventListener("input", (e) => { m.ylabel = e.target.value; });
+      row.querySelector(".fig-title").addEventListener("input", (e) => { m.title = e.target.value; scheduleRender(); });
+      row.querySelector(".fig-xlab").addEventListener("input", (e) => { m.xlabel = e.target.value; scheduleRender(); });
+      row.querySelector(".fig-ylab").addEventListener("input", (e) => { m.ylabel = e.target.value; scheduleRender(); });
     });
   }
 
@@ -505,7 +599,45 @@
       div.id = `tool2Fig${i}`;
       div.className = "plot";
       box.appendChild(div);
+
+      const eqd = document.createElement("div");
+      eqd.id = `tool2EqDisp${i}`;
+      eqd.className = "plot-eq";
+      eqd.innerHTML = "<span class=\"muted small\">Equations will appear here after rendering.</span>";
+      box.appendChild(eqd);
+
       elPlotGrid.appendChild(box);
+    }
+  }
+
+  function updateEquationDisplays(n) {
+    for (let i = 1; i <= n; i++) {
+      const host = $(`tool2EqDisp${i}`);
+      if (!host) continue;
+
+      const eqs = state.eqs.filter(e => e.enabled && clampInt(e.fig || 1, 1, n) === i);
+      if (!eqs.length) {
+        host.innerHTML = "<span class=\"muted small\">No equation curves on this figure.</span>";
+        continue;
+      }
+
+      const lines = eqs.map((e, idx) => {
+        const params = e.params || {};
+        const pkeys = Object.keys(params);
+        const ptxt = pkeys.length
+          ? pkeys.map(k => `${escapeHtml(k)}=${escapeHtml(params[k])}`).join(", ")
+          : "";
+
+        const label = e.name ? escapeHtml(e.name) : `Equation ${idx + 1}`;
+        return `
+          <div class="eq-row">
+            <div class="eq-main"><span class="eq-name">${label}</span>: <code>f(x) = ${escapeHtml(e.expr)}</code></div>
+            ${ptxt ? `<div class="eq-params muted small">${ptxt}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+
+      host.innerHTML = lines;
     }
   }
 
@@ -579,6 +711,7 @@
         margin: { l: 60, r: 20, t: 45, b: 55 },
         xaxis: { title: { text: meta.xlabel } },
         yaxis: { title: { text: meta.ylabel } },
+        showlegend: showLegend,
         legend: { orientation: "h" }
       };
 
@@ -589,6 +722,9 @@
 
       Plotly.react(div, traces, layout, config);
     }
+
+    updateEquationDisplays(n);
+    state.hasRendered = true;
 
     setStatus(renderedAny ? "Plots updated." : "Nothing to plot yet. Enable at least one dataset or equation.");
   }
@@ -601,6 +737,8 @@
     }
     elPlotGrid.innerHTML = "";
     setStatus("Cleared.");
+    state.hasRendered = false;
+    state._renderQueued = false;
   }
 
   // ---- Event wiring ----
@@ -628,11 +766,21 @@
     updateFigSettingsUI();
     updateDatasetUI();
     updateEqUI();
+    scheduleRender();
   });
+
+  // Live update controls
+  [elXMin, elXMax, elN].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("input", scheduleRender);
+    el.addEventListener("change", scheduleRender);
+  });
+  if (elShowLegend) elShowLegend.addEventListener("change", scheduleRender);
 
   elRender.addEventListener("click", () => {
     try {
       renderPlots();
+      state.hasRendered = true;
     } catch (e) {
       console.error(e);
       setStatus("Render failed. Check your equation syntax and uploaded data.");

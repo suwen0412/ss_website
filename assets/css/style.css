@@ -111,11 +111,27 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 .tool2-params { width: 100%; display:flex; gap: .75rem; flex-wrap: wrap; align-items: end; margin-top: .35rem; }
 .tool2-params .param { min-width: 120px; }
 
+/* Param slider cards */
+.tool2-param { min-width: 240px; max-width: 360px; display: grid; gap: .35rem; padding: .6rem; border: 1px solid rgba(0,0,0,.10); border-radius: 14px; background: rgba(0,0,0,.02); }
+.tool2-param .param-head { display:flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
+.tool2-param .param-name { font-weight: 800; }
+.tool2-param .param-valtext { font-weight: 700; color: rgba(0,0,0,.7); }
+.tool2-param .param-inline { display:flex; gap: .5rem; align-items:center; }
+.tool2-param .param-inline input[type="number"] { padding: .5rem; border: 1px solid rgba(0,0,0,.15); border-radius: 10px; background: #fff; min-width: 120px; }
+.tool2-param input[type="range"] { width: 100%; }
+.tool2-param .param-range { margin-top: .05rem; }
+
+.btn.tiny { padding: .42rem .65rem; border-radius: 999px; font-size: .85rem; }
+
 .btn.small { padding: .45rem .7rem; border-radius: 999px; font-size: .9rem; }
 
 .plot-grid { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
 .plot-box { border: 1px solid rgba(0,0,0,.12); border-radius: 14px; background: #fff; padding: .35rem; }
 .plot-box .plot { width: 100%; height: 420px; }
+.plot-eq { border-top: 1px solid rgba(0,0,0,.08); padding: .55rem .7rem .7rem; }
+.plot-eq code { white-space: normal; }
+.plot-eq .eq-row + .eq-row { margin-top: .55rem; }
+.plot-eq .eq-name { font-weight: 800; }
 @media (max-width: 500px) {
   .plot-box .plot { height: 360px; }
 }
