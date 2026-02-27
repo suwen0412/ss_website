@@ -210,3 +210,12 @@ body.tool2-dragging{ cursor: col-resize; user-select: none; }
 .plot-grid{ width:100%; }
 .plot-box{ width:100%; max-width:none; }
 .plot-box .plot{ width:100% !important; }
+
+
+/* Tool 2: left panel value-only params */
+.tool2-param-value .param-head{ margin-bottom: 6px; }
+.tool2-param-value .param-inline{ display:flex; gap:10px; align-items:center; }
+.tool2-param-value .param-val{ width: 160px; }
+.tool2-slider-group{ padding: 10px 0 6px; }
+.tool2-slider-grouphead{ display:flex; justify-content: space-between; align-items: flex-end; gap: 10px; padding: 8px 0; }
+.tool2-slider-gtitle{ font-weight: 700; }

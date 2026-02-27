@@ -116,6 +116,7 @@ window.addEventListener("resize", () => {
   const elClear  = $("tool2Clear");
   const elStatus = $("tool2Status");
   const elPlotGrid = $("tool2PlotGrid");
+  const elParamSliders = $("tool2ParamSliders");
 
   if (!elFiles || !elDatasetList || !elAddEq || !elEqList || !elRender || !elPlotGrid) return;
 
@@ -434,36 +435,85 @@ window.addEventListener("resize", () => {
     });
   }
 
-  function paramInputsHTML(eq) {
-    const keys = Object.keys(eq.params || {});
-    if (!keys.length) return `<div class="muted small">No parameters detected (only <code>x</code>).</div>`;
+  
+function paramInputsHTML(eq) {
+  const keys = Object.keys(eq.params || {});
+  if (!keys.length) return `<div class="muted small">No parameters detected (only <code>x</code>).</div>`;
 
-    // Ensure eq has slider range settings
+  return keys.map((k) => {
+    const v = num(eq.params[k], 1);
+    return `
+      <div class="tool2-param tool2-param-value" data-eqid="${escapeHtml(eq.id)}" data-p="${escapeHtml(k)}">
+        <div class="param-head">
+          <span class="param-name">${escapeHtml(k)}</span>
+        </div>
+        <div class="param-inline">
+          <input class="param-val" type="number" step="0.001" value="${fmt3(v)}" />
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+  
+function paramSlidersPanelHTML() {
+  const eqs = state.eqs || [];
+  let any = false;
+
+  const out = eqs.map((eq) => {
+    const keys = Object.keys(eq.params || {});
+    if (!keys.length) return "";
+
+    any = true;
     if (!eq.paramRanges) eq.paramRanges = {};
 
-    return keys.map((k) => {
+    const rows = keys.map((k) => {
       const v = num(eq.params[k], 1);
       if (!eq.paramRanges[k]) eq.paramRanges[k] = autoRangeFor(v);
       const r = eq.paramRanges[k];
+      const step = Math.max(r.step || 0.001, 0.001);
 
       return `
-        <div class="tool2-param" data-p="${escapeHtml(k)}">
-          <div class="param-head">
-            <span class="param-name">${escapeHtml(k)}</span>
-            <span class="param-valtext">${fmt3(v)}</span>
+        <div class="tool2-param tool2-slider-row" data-eqid="${escapeHtml(eq.id)}" data-p="${escapeHtml(k)}">
+          <div class="tool2-slider-top">
+            <span class="name">${escapeHtml(k)}</span>
+            <span class="val param-valtext">${fmt3(v)}</span>
           </div>
-          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${Math.max(r.step, 0.001)}" value="${round3(v)}" />
-          <div class="param-inline">
-            <input class="param-val" type="number" step="0.001" value="${fmt3(v)}" />
+          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${step}" value="${round3(v)}" />
+          <div class="tool2-slider-meta">
+            <span class="range param-range muted small">${fmt3(r.min)} ↔ ${fmt3(r.max)}</span>
             <button class="btn tiny param-rescale" type="button" title="Rescale slider around current value">Rescale</button>
           </div>
-          <div class="param-range muted small">${fmt3(r.min)} ↔ ${fmt3(r.max)}</div>
         </div>
       `;
     }).join("");
-  }
 
-  function updateEqUI() {
+    return `
+      <div class="tool2-slider-group">
+        <div class="tool2-slider-grouphead">
+          <div>
+            <div class="tool2-slider-gtitle">${escapeHtml(eq.name || "Equation")}</div>
+            <div class="muted small">f(x) = ${escapeHtml(eq.expr || "")}</div>
+          </div>
+        </div>
+        ${rows}
+      </div>
+    `;
+  }).join("");
+
+  if (!any) {
+    return `<div class="muted small">No parameters to show. Use variables like <code>a</code>, <code>b</code>, <code>c</code> in your equations, then click Render once.</div>`;
+  }
+  return out;
+}
+
+function updateParamSlidersUI() {
+  if (!elParamSliders) return;
+  elParamSliders.innerHTML = paramSlidersPanelHTML();
+  bindParamControls(elParamSliders); // binds by data-eqid
+}
+
+function updateEqUI() {
     if (!elEqList) return;
 
     if (!state.eqs.length) {
@@ -579,6 +629,7 @@ window.addEventListener("resize", () => {
         elParams.innerHTML = paramInputsHTML(eq);
 
         bindParamControls(elParams, eq);
+        updateParamSlidersUI();
         scheduleRender();
       }
 
@@ -602,48 +653,73 @@ window.addEventListener("resize", () => {
         scheduleRender();
       });
     });
-  }
+  
+    updateParamSlidersUI();
+}
 
-  function bindParamControls(container, eq) {
-    if (!container) return;
-    container.querySelectorAll(".tool2-param").forEach((card) => {
-      const key = card.getAttribute("data-p");
-      if (!key) return;
+  
+function bindParamControls(container, eqOpt) {
+  if (!container) return;
 
+  function syncAll(eqid, key, nv) {
+    const sel = `.tool2-param[data-eqid="${CSS.escape(eqid)}"][data-p="${CSS.escape(key)}"]`;
+    document.querySelectorAll(sel).forEach((card) => {
       const slider = card.querySelector(".param-slider");
       const inp = card.querySelector(".param-val");
       const valText = card.querySelector(".param-valtext");
-      const rangeText = card.querySelector(".param-range");
-      const btnRescale = card.querySelector(".param-rescale");
-
-      function setVal(v) {
-        const nv = round3(num(v, 1));
-        eq.params[key] = nv;
-        if (inp) inp.value = fmt3(nv);
-        if (valText) valText.textContent = fmt3(nv);
-        if (slider) slider.value = nv;
-        scheduleRender();
-      }
-
-      if (slider) {
-        slider.addEventListener("input", (e) => setVal(e.target.value));
-      }
-      if (inp) {
-        inp.addEventListener("input", (e) => setVal(e.target.value));
-      }
-      if (btnRescale && slider) {
-        btnRescale.addEventListener("click", () => {
-          const r = autoRangeFor(eq.params[key]);
-          eq.paramRanges = eq.paramRanges || {};
-          eq.paramRanges[key] = r;
-          slider.min = r.min;
-          slider.max = r.max;
-          slider.step = r.step;
-          if (rangeText) rangeText.textContent = `${r.min.toPrecision(4)} ↔ ${r.max.toPrecision(4)}`;
-        });
-      }
+      if (inp) inp.value = fmt3(nv);
+      if (valText) valText.textContent = fmt3(nv);
+      if (slider) slider.value = nv;
     });
   }
+
+  function syncRanges(eq, key, r) {
+    const sel = `.tool2-param[data-eqid="${CSS.escape(eq.id)}"][data-p="${CSS.escape(key)}"]`;
+    document.querySelectorAll(sel).forEach((card) => {
+      const slider = card.querySelector(".param-slider");
+      const rangeText = card.querySelector(".param-range");
+      if (slider) {
+        slider.min = r.min;
+        slider.max = r.max;
+        slider.step = Math.max(r.step || 0.001, 0.001);
+      }
+      if (rangeText) rangeText.textContent = `${fmt3(r.min)} ↔ ${fmt3(r.max)}`;
+    });
+  }
+
+  container.querySelectorAll(".tool2-param").forEach((card) => {
+    const key = card.getAttribute("data-p");
+    const eqid = card.getAttribute("data-eqid");
+    const eq = eqOpt || (eqid ? state.eqs.find((x) => x.id === eqid) : null);
+    if (!eq || !key) return;
+
+    const slider = card.querySelector(".param-slider");
+    const inp = card.querySelector(".param-val");
+    const btnRescale = card.querySelector(".param-rescale");
+
+    function setVal(v) {
+      const nv = round3(num(v, 1));
+      eq.params[key] = nv;
+      syncAll(eq.id, key, nv);
+      scheduleRender();
+    }
+
+    if (slider) {
+      slider.addEventListener("input", (e) => setVal(e.target.value));
+    }
+    if (inp) {
+      inp.addEventListener("input", (e) => setVal(e.target.value));
+    }
+    if (btnRescale) {
+      btnRescale.addEventListener("click", () => {
+        const r = autoRangeFor(eq.params[key]);
+        eq.paramRanges = eq.paramRanges || {};
+        eq.paramRanges[key] = r;
+        syncRanges(eq, key, r);
+      });
+    }
+  });
+}
 
   // ---- Figure settings ----
   function ensureFigMeta(n) {
@@ -867,6 +943,7 @@ window.addEventListener("resize", () => {
     updateFigSettingsUI();
     updateDatasetUI();
     updateEqUI();
+    updateParamSlidersUI();
     scheduleRender();
   });
 
