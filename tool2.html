@@ -211,6 +211,17 @@ body.tool2-full .plot-area{
 <div class="tool2-right-head">
       <h4 style="margin:0;">Visualization</h4>
       <p class="muted small" style="margin:.25rem 0 0;">Plots update instantly when you drag parameters (after your first Render).</p>
+
+<div class="tool2-float-controls">
+  <label class="tool2-check" style="margin:0;">
+    <input id="tool2FloatToggle" type="checkbox" />
+    <span>Floating preview</span>
+  </label>
+  <label class="tool2-mini" style="margin:0;">
+    <span>Figure</span>
+    <select id="tool2FloatFig" class="tool2-select"></select>
+  </label>
+</div>
     </div>
     <div id="tool2PlotGrid" class="plot-grid"></div>
 
@@ -227,7 +238,20 @@ body.tool2-full .plot-area{
     </div>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+<!-- Floating preview window -->
+<div id="tool2FloatWin" class="tool2-floatwin" style="display:none;">
+  <div class="tool2-floatbar" id="tool2FloatBar" title="Drag to move">
+    <div class="tool2-floattitle" id="tool2FloatTitle">Floating preview</div>
+    <button class="tool2-floatclose" id="tool2FloatClose" type="button" title="Close">✕</button>
+  </div>
+  <div class="tool2-floatbody">
+    <div id="tool2FloatPlot" class="plot"></div>
+    <div id="tool2FloatEq" class="tool2-float-eq"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.2/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
   <script src="assets/js/tool2.js"></script>

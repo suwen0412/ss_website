@@ -116,12 +116,22 @@ window.addEventListener("resize", () => {
   const elClear  = $("tool2Clear");
   const elStatus = $("tool2Status");
   const elPlotGrid = $("tool2PlotGrid");
+
+  const elFloatToggle = $("tool2FloatToggle");
+  const elFloatFig = $("tool2FloatFig");
+  const elFloatWin = $("tool2FloatWin");
+  const elFloatBar = $("tool2FloatBar");
+  const elFloatClose = $("tool2FloatClose");
+  const elFloatPlot = $("tool2FloatPlot");
+  const elFloatEq = $("tool2FloatEq");
+  const elFloatTitle = $("tool2FloatTitle");
   const elParamSliders = $("tool2ParamSliders");
 
   if (!elFiles || !elDatasetList || !elAddEq || !elEqList || !elRender || !elPlotGrid) return;
 
   // ---- State ----
   const state = {
+    float: { enabled: false, fig: 1, left: null, top: null, w: null, h: null },
     datasets: [], // {id, name, x, y, fig, enabled}
     eqs: [],      // {id, name, expr, params:{}, compiled, fig, enabled, xMode:'range'|'dataset', datasetId:null}
     figMeta: [],  // [{title,xlabel,ylabel}]
@@ -256,6 +266,7 @@ window.addEventListener("resize", () => {
 
     updateDatasetUI();
     updateEqUI();
+  initFloatUI();
   initSplitter(); // refresh dataset dropdowns inside equations
     setStatus(added ? `Loaded ${added} dataset(s). Assign them to figures and click “Render / Update plots”.` : "No numeric two-column datasets found in the uploaded files.");
   }
@@ -816,7 +827,212 @@ function bindParamControls(container, eqOpt) {
     }
   }
 
-  // ---- Rendering ----
+  
+// ---- Floating preview ----
+function fillFloatFigOptions() {
+  if (!elFloatFig) return;
+  const n = clampInt(elFigCount.value, 1, MAX_FIGS);
+  let out = "";
+  for (let i = 1; i <= n; i++) {
+    out += `<option value="${i}">Figure ${i}</option>`;
+  }
+  elFloatFig.innerHTML = out;
+  // keep selected if possible
+  const v = clampInt(state.float.fig || 1, 1, n);
+  state.float.fig = v;
+  elFloatFig.value = String(v);
+}
+
+function floatSetVisible(on) {
+  if (!elFloatWin) return;
+  elFloatWin.style.display = on ? "block" : "none";
+}
+
+function updateFloatEq(fig, n) {
+  if (!elFloatEq) return;
+  const N = n || clampInt(elFigCount.value, 1, MAX_FIGS);
+  const eqs = (state.eqs || []).filter(e => e.enabled && clampInt(e.fig || 1, 1, N) === fig);
+  if (!eqs.length) {
+    elFloatEq.innerHTML = "<span class=\"muted small\">No equation curves on this figure.</span>";
+    return;
+  }
+  const lines = eqs.map((e, idx) => {
+    const params = e.params || {};
+    const pkeys = Object.keys(params);
+    const ptxt = pkeys.length ? pkeys.map(k => `${escapeHtml(k)}=${escapeHtml(fmt3(params[k]))}`).join(", ") : "";
+    const label = e.name ? escapeHtml(e.name) : `Equation ${idx + 1}`;
+    return `
+      <div class="eq-row">
+        <div class="eq-main"><span class="eq-name">${label}</span>: <code>f(x) = ${escapeHtml(e.expr)}</code></div>
+        ${ptxt ? `<div class="eq-params muted small">${ptxt}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+  elFloatEq.innerHTML = lines;
+}
+
+function renderFloatFromFigure(fig) {
+  if (!elFloatPlot || !window.Plotly) return;
+  const n = clampInt(elFigCount.value, 1, MAX_FIGS);
+  fig = clampInt(fig, 1, n);
+
+  // Grab the current figure plot spec by reading the plot div data (reliable after first render)
+  const srcDiv = $(`tool2Fig${fig}`);
+  if (!srcDiv || !(srcDiv.data || srcDiv._fullLayout)) return;
+
+  // Use Plotly.react to mirror it
+  const data = (srcDiv.data || []).map(t => Object.assign({}, t));
+  const layout = Object.assign({}, (srcDiv.layout || {}));
+  // Keep title consistent
+  const meta = state.figMeta[fig - 1] || { title: `Figure ${fig}` };
+  layout.title = { text: meta.title || `Figure ${fig}` };
+  layout.margin = layout.margin || { l: 60, r: 20, t: 45, b: 55 };
+
+  const config = { responsive: true, displaylogo: false };
+  Plotly.react(elFloatPlot, data, layout, config);
+
+  if (elFloatTitle) elFloatTitle.textContent = `Floating preview — Figure ${fig}`;
+  updateFloatEq(fig, n);
+
+  // resize after render
+  setTimeout(() => { try { Plotly.Plots.resize(elFloatPlot); } catch(e){} }, 0);
+}
+
+function persistFloatGeometry() {
+  if (!elFloatWin) return;
+  const r = elFloatWin.getBoundingClientRect();
+  state.float.left = Math.round(r.left);
+  state.float.top  = Math.round(r.top);
+  state.float.w    = Math.round(r.width);
+  state.float.h    = Math.round(r.height);
+  try { localStorage.setItem("tool2_float_geom", JSON.stringify(state.float)); } catch(e) {}
+}
+
+function restoreFloatGeometry() {
+  if (!elFloatWin) return;
+  try {
+    const raw = localStorage.getItem("tool2_float_geom");
+    if (!raw) return;
+    const g = JSON.parse(raw);
+    if (!g) return;
+    if (typeof g.left === "number") { elFloatWin.style.left = g.left + "px"; elFloatWin.style.right = "auto"; }
+    if (typeof g.top === "number")  { elFloatWin.style.top  = g.top + "px"; }
+    if (typeof g.w === "number")    { elFloatWin.style.width  = g.w + "px"; }
+    if (typeof g.h === "number")    { elFloatWin.style.height = g.h + "px"; }
+    if (typeof g.fig === "number")  { state.float.fig = g.fig; }
+    if (typeof g.enabled === "boolean") { state.float.enabled = g.enabled; }
+  } catch(e) {}
+}
+
+function initFloatUI() {
+  if (!elFloatToggle || !elFloatFig || !elFloatWin) return;
+
+  restoreFloatGeometry();
+  fillFloatFigOptions();
+
+  elFloatToggle.checked = !!state.float.enabled;
+  floatSetVisible(!!state.float.enabled);
+
+  // figure select
+  elFloatFig.addEventListener("change", () => {
+    state.float.fig = clampInt(elFloatFig.value, 1, clampInt(elFigCount.value, 1, MAX_FIGS));
+    persistFloatGeometry();
+    if (state.float.enabled) renderFloatFromFigure(state.float.fig);
+  });
+
+  elFloatToggle.addEventListener("change", () => {
+    state.float.enabled = !!elFloatToggle.checked;
+    floatSetVisible(state.float.enabled);
+    persistFloatGeometry();
+    if (state.float.enabled) renderFloatFromFigure(state.float.fig);
+  });
+
+  if (elFloatClose) {
+    elFloatClose.addEventListener("click", () => {
+      state.float.enabled = false;
+      elFloatToggle.checked = false;
+      floatSetVisible(false);
+      persistFloatGeometry();
+    });
+  }
+
+  // Drag to move
+  if (elFloatBar) {
+    let dragging = false;
+    let sx = 0, sy = 0, startLeft = 0, startTop = 0;
+
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX);
+      const cy = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dx = cx - sx;
+      const dy = cy - sy;
+
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const rect = elFloatWin.getBoundingClientRect();
+
+      let nl = startLeft + dx;
+      let nt = startTop + dy;
+
+      // keep within viewport
+      nl = clamp(nl, 6, vw - rect.width - 6);
+      nt = clamp(nt, 6, vh - rect.height - 6);
+
+      elFloatWin.style.left = nl + "px";
+      elFloatWin.style.top = nt + "px";
+      elFloatWin.style.right = "auto";
+
+      e.preventDefault();
+    };
+
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("tool2-float-dragging");
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove, { passive: false });
+      window.removeEventListener("touchend", onUp);
+      persistFloatGeometry();
+    };
+
+    const onDown = (e) => {
+      // ignore if clicking close button
+      if (e.target && e.target.id === "tool2FloatClose") return;
+
+      const rect = elFloatWin.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      sx = (e.touches ? e.touches[0].clientX : e.clientX);
+      sy = (e.touches ? e.touches[0].clientY : e.clientY);
+      dragging = true;
+      document.body.classList.add("tool2-float-dragging");
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("touchmove", onMove, { passive: false });
+      window.addEventListener("touchend", onUp);
+      e.preventDefault();
+    };
+
+    elFloatBar.addEventListener("mousedown", onDown);
+    elFloatBar.addEventListener("touchstart", onDown, { passive: false });
+  }
+
+  // Resize observer to keep Plotly filling the window
+  try {
+    const ro = new ResizeObserver(() => {
+      if (state.float.enabled && elFloatPlot && window.Plotly) {
+        try { Plotly.Plots.resize(elFloatPlot); } catch(e) {}
+        persistFloatGeometry();
+      }
+    });
+    ro.observe(elFloatWin);
+  } catch(e) {}
+}
+
+// ---- Rendering ----
   function linspace(a, b, n) {
     const out = [];
     const N = Math.max(2, n);
@@ -902,6 +1118,10 @@ function bindParamControls(container, eqOpt) {
     state.hasRendered = true;
 
     resizeAllPlots();
+
+    if (state.float && state.float.enabled) {
+      renderFloatFromFigure(state.float.fig || 1);
+    }
 
     setStatus(renderedAny ? "Plots updated." : "Nothing to plot yet. Enable at least one dataset or equation.");
   }

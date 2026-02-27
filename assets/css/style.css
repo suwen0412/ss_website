@@ -250,3 +250,74 @@ body.tool2-dragging{ cursor: col-resize; user-select: none; }
 .tool2-slider-gtitle{ font-weight: 800; }
 
 .plot-area{ overflow: visible; }
+
+
+/* Floating preview window (Tool 2) */
+.tool2-float-controls{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  margin-top: 10px;
+}
+.tool2-select{
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.14);
+  background: #fff;
+}
+
+.tool2-floatwin{
+  position: fixed;
+  top: 90px;
+  right: 22px;
+  width: 560px;
+  height: 460px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 16px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.18);
+  z-index: 9999;
+  overflow: auto; /* required for CSS resize handle */
+  resize: both;   /* let user resize the window */
+}
+.tool2-floatbar{
+  position: sticky;
+  top: 0;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: move;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.tool2-floattitle{
+  font-weight: 800;
+}
+.tool2-floatclose{
+  border: 1px solid rgba(0,0,0,.12);
+  background: #fff;
+  border-radius: 10px;
+  width: 34px;
+  height: 32px;
+  line-height: 30px;
+  cursor: pointer;
+}
+.tool2-floatbody{
+  padding: 10px 12px 12px;
+}
+#tool2FloatPlot{
+  width: 100%;
+  height: 320px;
+}
+.tool2-float-eq{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0,0,0,.08);
+}
+body.tool2-float-dragging{
+  user-select: none;
+  cursor: move;
+}
