@@ -72,6 +72,29 @@ body.tool2-full .tool2-left{
   padding-right: 1.0rem;
   border-right: 1px solid rgba(0,0,0,.08);
 }
+
+/* Tool 2 — force side-by-side flex layout (Desmos-like) */
+body.tool2-full .app-container{
+  display:flex;
+  flex-direction:row;
+  align-items:flex-start;
+  width:100%;
+  gap: 1.25rem;
+}
+body.tool2-full .side-panel{
+  width: 360px;
+  flex-shrink:0;
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 140px);
+  overflow:auto;
+  padding-right: .35rem;
+  border-right: 1px solid rgba(0,0,0,.08);
+}
+body.tool2-full .plot-area{
+  flex: 1 1 auto;
+  min-width: 0; /* critical: let Plotly fill remaining width */
+}
   </style>
 </head>
 <body class=\"tool2-full\">
@@ -86,7 +109,7 @@ body.tool2-full .tool2-left{
   </header>
 
   <main class="toolpage-wrap">
-    <div class="container">
+    <div class="container tool2-wide">
       <div class="toolpage-head">
         <div>
           <h1>Tool 2 — Equation + Data Visualizer</h1>
@@ -97,9 +120,9 @@ body.tool2-full .tool2-left{
       <div class="toolpage-card">
         <div class="card">
           
-<div class="tool2-layout">
-  <div class="tool2-left">
-    <div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
+<div class="app-container">
+  <div class="side-panel">
+<div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
   <div class="tool2-block">
     <div class="tool2-block-head">
       <h4>1) Upload data (Excel/CSV)</h4>
@@ -182,19 +205,17 @@ body.tool2-full .tool2-left{
     </details>
   </div>
   </div>
+  </div>
 
-  <div class="tool2-splitter" role="separator" aria-label="Resize panels" tabindex="0"></div>
-
-  <div class="tool2-right">
-    <div class="tool2-right-head">
+  <div class="plot-area">
+<div class="tool2-right-head">
       <h4 style="margin:0;">Visualization</h4>
       <p class="muted small" style="margin:.25rem 0 0;">Plots update instantly when you drag parameters (after your first Render).</p>
     </div>
     <div id="tool2PlotGrid" class="plot-grid"></div>
   </div>
+  </div>
 </div>
-</div>
-
         </div>
       </div>
     </div>

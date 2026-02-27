@@ -98,7 +98,7 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
   align-items: start;
   margin-top: 1rem;
   min-height: calc(100vh - 220px);
-  min-width: 820px;
+  
 }
 /* Left controls panel */
 .tool2-left{
@@ -199,3 +199,14 @@ input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px 
 .plot-box{ width:100%; }
 
 body.tool2-dragging{ cursor: col-resize; user-select: none; }
+
+.tool2-wide{ width: min(1600px, 96%); }
+
+/* Tool 2 flex layout helpers */
+
+.app-container{ display:flex; flex-direction:row; align-items:flex-start; width:100%; gap:1.25rem; }
+.side-panel{ width:360px; flex-shrink:0; }
+.plot-area{ flex:1 1 auto; min-width:0; }
+.plot-grid{ width:100%; }
+.plot-box{ width:100%; max-width:none; }
+.plot-box .plot{ width:100% !important; }
