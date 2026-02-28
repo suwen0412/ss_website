@@ -847,8 +847,18 @@ function fillFloatFigOptions() {
   elFloatFig.value = String(v);
 }
 
+
 function floatSetVisible(on) {
   if (!elFloatWin) return;
+
+  if (on) {
+    // Guard against a bad saved geometry (e.g., 0×0)
+    const w = parseInt(elFloatWin.style.width || "", 10);
+    const h = parseInt(elFloatWin.style.height || "", 10);
+    if (!w || w < 200) elFloatWin.style.width = "560px";
+    if (!h || h < 200) elFloatWin.style.height = "460px";
+  }
+
   elFloatWin.style.display = on ? "block" : "none";
 }
 
@@ -947,9 +957,17 @@ function renderFloatFromFigure(fig) {
 }
 
 
+
 function persistFloatGeometry() {
   if (!elFloatWin) return;
+
+  // If hidden (display:none) the rect will be 0×0; don't overwrite saved geometry.
+  const disp = (elFloatWin.style && elFloatWin.style.display) ? elFloatWin.style.display : "";
+  if (disp === "none") return;
+
   const r = elFloatWin.getBoundingClientRect();
+  if (!r || r.width < 120 || r.height < 120) return;
+
   state.float.left = Math.round(r.left);
   state.float.top  = Math.round(r.top);
   state.float.w    = Math.round(r.width);
@@ -1001,7 +1019,8 @@ function initFloatUI() {
       state.float.enabled = false;
       elFloatToggle.checked = false;
       floatSetVisible(false);
-      persistFloatGeometry();
+      // Do not persist after hiding (would save 0×0)
+      try { localStorage.setItem("tool2_float_geom", JSON.stringify(state.float)); } catch(e) {}
     });
   }
 
@@ -1115,6 +1134,8 @@ function initAutoFloat() {
   elAutoFloat.addEventListener("change", () => {
     state.float.autoFloat = !!elAutoFloat.checked;
     try { localStorage.setItem("tool2_auto_float", String(state.float.autoFloat)); } catch(e) {}
+    // run once immediately so user sees an effect
+    evaluate();
   });
 
   // Track whether floating was auto-enabled so we can auto-hide politely
