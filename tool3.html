@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tool 3 — Time-Dependent Data Plotting & Animation</title>
+  <meta name="description" content="Python toolkit for plotting and animating time-dependent data from Excel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  <link href="assets/css/style.css" rel="stylesheet" />
+  <style>
+    body { background: var(--alt); }
+    .toolpage-wrap { padding: 44px 0 64px; }
+    .toolpage-head { display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap:wrap; }
+    .toolpage-head h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); }
+    .toolpage-card { margin-top: 14px; }
+    .toolpage-card .card { padding: 20px; }
+    .top-actions { display:flex; gap: 10px; flex-wrap:wrap; }
+    .example-table { width:100%; border-collapse: collapse; margin-top: 1rem; }
+    .example-table th, .example-table td { border: 1px solid rgba(0,0,0,.1); padding: .65rem .75rem; text-align:left; }
+    .example-table th { background: rgba(0,0,0,.03); }
+    pre.code-block { overflow:auto; padding: 1rem; border-radius: 14px; background: #0f172a; color: #e2e8f0; }
+    code.inline { background: rgba(15,23,42,.06); padding: .12rem .35rem; border-radius: 8px; }
+    .download-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 1rem; margin-top: 1rem; }
+    .download-card { border: 1px solid rgba(0,0,0,.08); border-radius: 16px; padding: 1rem; background: #fff; }
+    .mini { font-size: .95rem; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html">Suwen<span> Shi</span></a>
+      <div class="top-actions">
+        <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="toolpage-wrap">
+    <div class="container narrow">
+      <div class="toolpage-head">
+        <div>
+          <h1>Tool 3 — Time-Dependent Data Plotting &amp; Animation</h1>
+          <p class="muted" style="margin:.35rem 0 0;">Python toolkit for Excel-based time series with 2D/3D plotting, lag plots, and animation support.</p>
+        </div>
+      </div>
+
+      <div class="toolpage-card">
+        <div class="card">
+          <h3>What this toolkit does</h3>
+          <ul class="bullets">
+            <li>Loads Excel data with one time column and multiple variables</li>
+            <li>Lets you choose a skip value, where <code class="inline">1</code> means no skipping</li>
+            <li>Supports standard 2D time-series plots and 3D trajectory plots</li>
+            <li>Supports 2D lag plots such as <code class="inline">x(n)</code> versus <code class="inline">x(n+skip)</code></li>
+            <li>Allows custom axis labels, variable names, and titles for presentation-ready figures</li>
+          </ul>
+
+          <div class="download-grid">
+            <div class="download-card">
+              <h4 style="margin-top:0;">Toolkit file</h4>
+              <p class="mini">Download the Python script and run it locally in Jupyter or any Python environment.</p>
+              <a class="btn primary" download href="assets/downloads/toolkit3_time_dependent_plotting.py">Download Toolkit 3 (.py)</a>
+            </div>
+            <div class="download-card">
+              <h4 style="margin-top:0;">Reference workbook</h4>
+              <p class="mini">A sample Excel file showing the required worksheet layout and column naming.</p>
+              <a class="btn primary" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolpage-card">
+        <div class="card">
+          <h3>Required Excel structure</h3>
+          <p>Your sheet should contain one time column and at least three variable columns. Units can be included directly in the header names.</p>
+          <table class="example-table">
+            <thead>
+              <tr>
+                <th>Time (s)</th>
+                <th>Variable 1 (a.u.)</th>
+                <th>Variable 2 (a.u.)</th>
+                <th>Variable 3 (a.u.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>0.00</td><td>0.00</td><td>1.00</td><td>0.15</td></tr>
+              <tr><td>0.01</td><td>0.12</td><td>0.99</td><td>0.18</td></tr>
+              <tr><td>0.02</td><td>0.24</td><td>0.96</td><td>0.22</td></tr>
+              <tr><td>0.03</td><td>0.35</td><td>0.92</td><td>0.27</td></tr>
+            </tbody>
+          </table>
+          <p class="mini">The downloadable workbook includes a full example sheet using this format.</p>
+        </div>
+      </div>
+
+      <div class="toolpage-card">
+        <div class="card">
+          <h3>Example usage</h3>
+          <pre class="code-block">from toolkit3_time_dependent_plotting import *
+from matplotlib.animation import PillowWriter
+
+# Load the Excel workbook
+# skip=1 means no skipped time steps
+df = load_excel_timeseries(
+    "toolkit3_example_timeseries.xlsx",
+    sheet_name="Example_Data",
+    time_col="Time (s)",
+    variable_cols=["Variable 1 (a.u.)", "Variable 2 (a.u.)", "Variable 3 (a.u.)"],
+    skip=1,
+)
+
+# Make a 2D lag plot: x(n) vs x(n+1)
+plot_lag_2d(
+    df,
+    variable_col="Variable 1 (a.u.)",
+    skip=1,
+    xlabel="Var1(n)",
+    ylabel="Var1(n+1)",
+    title="2D lag plot",
+)
+
+# Build a 3D animation
+anim = animate_timeseries(
+    df,
+    mode="3d",
+    x_col="Variable 1 (a.u.)",
+    y_col="Variable 2 (a.u.)",
+    time_col="Time (s)",
+    xlabel="Variable 1",
+    ylabel="Variable 2",
+    zlabel="Time (s)",
+    title="3D animation",
+)
+anim.save("demo.gif", writer=PillowWriter(fps=15))</pre>
+          <p class="mini">You can change the labels and choose different variables depending on the figure you want to generate.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© <span id="year"></span> Suwen Shi. Built with warm heart for science.</p>
+    </div>
+  </footer>
+  <script>
+    (function(){ var y=document.getElementById('year'); if(y) y.textContent = new Date().getFullYear(); })();
+  </script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
