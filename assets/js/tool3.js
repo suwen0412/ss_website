@@ -220,39 +220,54 @@
     renderCurrentPlot();
   }
 
-  function getShiftData() {
+  function getLagData() {
     const tCol = elTimeShift.value;
     const yCol = elShiftVar.value;
     const skip = clampInt(elSkip.value, 1, 100000, 1);
 
-    const t = [], yn = [], ynp = [];
-    const n = Math.max(0, state.rows.length - skip);
-    for (let i = 0; i < n; i++) {
-      const y0 = num(state.rows[i][yCol]);
-      const y1 = num(state.rows[i + skip][yCol]);
-      if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
-      const tRaw = state.rows[i][tCol];
-      t.push(safeText(tRaw) === "" ? i : tRaw);
-      yn.push(y0);
-      ynp.push(y1);
+    const timeVals = [];
+    const signal = [];
+    for (let i = 0; i < state.rows.length; i++) {
+      const yv = num(state.rows[i][yCol]);
+      const tvRaw = state.rows[i][tCol];
+      const tvNum = num(tvRaw);
+      if (!Number.isFinite(yv)) continue;
+      signal.push(yv);
+      timeVals.push(Number.isFinite(tvNum) ? tvNum : i);
     }
-    return { tCol, yCol, skip, t, yn, ynp };
+
+    const n = Math.max(0, signal.length - skip);
+    const x = [], y = [], t = [];
+    for (let i = 0; i < n; i++) {
+      x.push(signal[i]);
+      y.push(signal[i + skip]);
+      t.push(timeVals[i + skip]);
+    }
+
+    return { tCol, yCol, skip, x, y, t, signalLength: signal.length };
   }
 
   function getTrajectoryData() {
     const mode = elMode.value;
     const xCol = elX.value, yCol = elY.value, zCol = elZ.value, tCol = elTimeTraj.value;
-    const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
+    const pts = [];
     for (const row of state.rows) {
       const xv = num(row[xCol]);
       const yv = num(row[yCol]);
       const zv = num(row[zCol]);
+      const tvRaw = row[tCol];
+      const tvNum = num(tvRaw);
       if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
       if (mode === "3d" && !Number.isFinite(zv)) continue;
-      out.x.push(xv);
-      out.y.push(yv);
-      if (mode === "3d") out.z.push(zv);
-      out.t.push(row[tCol]);
+      pts.push({ x: xv, y: yv, z: zv, t: tvRaw, tSort: Number.isFinite(tvNum) ? tvNum : pts.length });
+    }
+    pts.sort((a, b) => a.tSort - b.tSort);
+    const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
+    for (const p of pts) {
+      out.x.push(p.x);
+      out.y.push(p.y);
+      if (mode === "3d") out.z.push(p.z);
+      out.t.push(p.t);
     }
     return out;
   }
@@ -269,23 +284,50 @@
   }
 
   function renderShiftPlot() {
-    const d = getShiftData();
+    const d = getLagData();
     const traces = [
-      { x: d.t, y: d.yn, type: "scatter", mode: "lines", name: `${d.yCol} (n)`, line: { width: 3 } },
-      { x: d.t, y: d.ynp, type: "scatter", mode: "lines", name: `${d.yCol} (n+${d.skip})`, line: { width: 3, dash: "dash" } }
+      {
+        x: d.x,
+        y: d.y,
+        type: "scatter",
+        mode: "lines+markers",
+        name: `${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`,
+        marker: { size: 5 },
+        line: { width: 2.5 }
+      },
+      {
+        x: d.x.length ? [d.x[d.x.length - 1]] : [],
+        y: d.y.length ? [d.y[d.y.length - 1]] : [],
+        type: "scatter",
+        mode: "markers",
+        name: "Current point",
+        marker: { size: Math.max(7, clampInt(elPointSize.value, 4, 24, 11)) }
+      }
     ];
+    const diagMin = Math.min(...d.x, ...d.y);
+    const diagMax = Math.max(...d.x, ...d.y);
+    if (Number.isFinite(diagMin) && Number.isFinite(diagMax)) {
+      traces.unshift({
+        x: [diagMin, diagMax],
+        y: [diagMin, diagMax],
+        type: "scatter",
+        mode: "lines",
+        name: "y=x",
+        line: { width: 1.5, dash: "dash", color: "#9ca3af" }
+      });
+    }
     const layout = {
-      title: `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`,
+      title: `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: d.tCol, automargin: true },
-      yaxis: { title: d.yCol, automargin: true },
+      xaxis: { title: `${d.yCol}(n)`, automargin: true },
+      yaxis: { title: `${d.yCol}(n+${d.skip})`, automargin: true, scaleanchor: "x", scaleratio: 1 },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
     };
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
-    setMeta(`Showing ${d.yn.length} aligned points. Time column: ${d.tCol}. Skip = ${d.skip}.`);
-    if (elSummary) elSummary.textContent = "Shifted-time plot selected. GIF export will animate the moving comparison of y(n) and y(n+skip).";
+    setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}.`);
+    if (elSummary) elSummary.textContent = "Lag plot selected. GIF export animates variable(n) versus variable(n+skip) in time order.";
   }
 
   function renderTrajectoryPlot() {
@@ -389,6 +431,47 @@
     return [lo - pad, hi + pad];
   }
 
+  function formatTick(v) {
+    if (!Number.isFinite(v)) return "";
+    const abs = Math.abs(v);
+    if (abs >= 1000 || (abs > 0 && abs < 0.001)) return v.toExponential(1);
+    if (abs >= 100) return v.toFixed(0);
+    if (abs >= 10) return v.toFixed(1);
+    if (abs >= 1) return v.toFixed(2);
+    return v.toFixed(3);
+  }
+
+  function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax) {
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    for (let k = 0; k <= 4; k++) {
+      const frac = k / 4;
+      const xx = pad.l + frac * iw;
+      const yy = pad.t + ih - frac * ih;
+      const xv = xmin + frac * (xmax - xmin);
+      const yv = ymin + frac * (ymax - ymin);
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.beginPath();
+      ctx.moveTo(pad.l, yy);
+      ctx.lineTo(pad.l + iw, yy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xx, pad.t);
+      ctx.lineTo(xx, pad.t + ih);
+      ctx.stroke();
+      ctx.fillText(formatTick(yv), 8, yy + 4);
+      ctx.fillText(formatTick(xv), Math.max(pad.l - 12, xx - 12), pad.t + ih + 20);
+    }
+  }
+
   function createCanvas(cfg) {
     const canvas = document.createElement("canvas");
     canvas.width = cfg.width;
@@ -424,90 +507,60 @@
     const w = canvas.width, h = canvas.height;
     const pad = { l: 60, r: 24, t: 50, b: 48 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const allY = d.yn.concat(d.ynp);
-    const [ymin, ymax] = getMinMax(allY);
-    const n = Math.max(1, d.yn.length - 1);
-    const xMap = (i) => pad.l + (iw * i / n);
+    const all = d.x.concat(d.y);
+    const [xmin, xmax] = getMinMax(all);
+    const [ymin, ymax] = getMinMax(all);
+    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
-    drawBackground(ctx, w, h, `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`);
-    ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = 1;
+    drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
+
+    ctx.save();
+    ctx.strokeStyle = "#9ca3af";
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.moveTo(xMap(xmin), yMap(xmin));
+    ctx.lineTo(xMap(xmax), yMap(xmax));
     ctx.stroke();
-
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    for (let k = 0; k <= 4; k++) {
-      const frac = k / 4;
-      const yy = pad.t + ih - frac * ih;
-      const val = ymin + frac * (ymax - ymin);
-      ctx.strokeStyle = "#f1f5f9";
-      ctx.beginPath();
-      ctx.moveTo(pad.l, yy);
-      ctx.lineTo(pad.l + iw, yy);
-      ctx.stroke();
-      ctx.fillText(val.toFixed(3), 8, yy + 4);
-    }
-
-    const tickIdx = [0, Math.floor(d.t.length / 2), Math.max(0, d.t.length - 1)];
-    tickIdx.forEach((ii) => {
-      if (!d.t.length) return;
-      const xx = xMap(ii);
-      ctx.fillStyle = "#6b7280";
-      ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12);
-    });
-
-    function drawPath(arr, color, upTo, dash) {
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      if (dash) ctx.setLineDash([8, 5]);
-      ctx.beginPath();
-      for (let i = 0; i <= upTo; i++) {
-        const xx = xMap(i);
-        const yy = yMap(arr[i]);
-        if (i === 0) ctx.moveTo(xx, yy);
-        else ctx.lineTo(xx, yy);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.restore();
 
     ctx.globalAlpha = 0.18;
-    drawPath(d.yn, "#2563eb", d.yn.length - 1, false);
-    drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true);
+    ctx.fillStyle = "#2563eb";
+    for (let i = 0; i < d.x.length; i++) {
+      ctx.beginPath();
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
 
-    const activeIdx = Math.max(0, Math.min(idx, d.yn.length - 1));
-    drawPath(d.yn, "#2563eb", activeIdx, false);
-    drawPath(d.ynp, "#dc2626", activeIdx, true);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const xx = xMap(d.x[i]);
+      const yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
 
     const ps = clampInt(elPointSize.value, 4, 24, 11);
-    const xActive = xMap(activeIdx);
-
-    ctx.fillStyle = "#2563eb";
-    ctx.beginPath();
-    ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#374151";
-    ctx.font = "600 12px Inter, Arial, sans-serif";
-    ctx.fillText(`frame ${activeIdx + 1}/${d.yn.length}`, w - 130, 26);
-    ctx.fillText(String(d.t[activeIdx]), w - 130, 44);
-
-    drawSimpleLegend(ctx, [
-      { color: "#2563eb", label: `${d.yCol} (n)` },
-      { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }
-    ], w - 190, 72);
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.yCol}(n)`, w / 2 - 24, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.yCol}(n+${d.skip})`, 0, 0);
+    ctx.restore();
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 160, 44);
 
     return canvas;
   }
@@ -522,13 +575,7 @@
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
 
     drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
-    ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
-    ctx.stroke();
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
 
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = "#2563eb";
@@ -883,15 +930,15 @@
     let outName = "plot_animation.gif";
 
     if (elPlotType.value === "shift") {
-      const d = getShiftData();
+      const d = getLagData();
       if (d.yn.length < 2) {
-        setGifStatus("Need at least two valid shifted-time points for GIF export.");
+        setGifStatus("Need at least two valid lag-plot points for GIF export.");
         if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
         return;
       }
       frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
       drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
-      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted_time.gif`;
+      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag_plot.gif`;
     } else {
       const d = getTrajectoryData();
       if (d.x.length < 2) {
@@ -986,6 +1033,6 @@
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
-  setGifStatus("GIF export is available for both plot types. This version uses a fully local browser-side encoder so it does not depend on an external worker script.");
+  setGifStatus("GIF export is available for both plot types. This version uses a fully local browser-side encoder, and the lag-plot mode now matches the example workbook format: variable(n) vs variable(n+skip).");
   renderCurrentPlot();
 })();

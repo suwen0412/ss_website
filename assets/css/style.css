@@ -342,3 +342,11 @@ body.tool2-float-dragging{
 @media (max-width: 900px) {
   .slide img { height: 320px; }
 }
+
+
+/* Final hero carousel sizing override */
+.carousel{ background:#f7f7f8; }
+.carousel .slides{ align-items:stretch; }
+.slide{ height:420px; display:flex; align-items:center; justify-content:center; background:#f7f7f8; }
+.slide img{ width:100%; height:100%; object-fit:contain; background:#f7f7f8; }
+@media (max-width: 900px){ .slide{ height:320px; } .slide img{ height:100%; } }

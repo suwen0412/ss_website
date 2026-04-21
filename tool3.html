@@ -97,7 +97,7 @@
               <label class="tool3-label">
                 <span>Plot type</span>
                 <select class="tool3-select" id="tool3PlotType">
-                  <option value="shift">Shifted-time plot: y(n) and y(n+skip) vs time</option>
+                  <option value="shift">Lag plot: variable(n) vs variable(n+skip)</option>
                   <option value="trajectory">Trajectory plot: 2D or 3D variable path</option>
                 </select>
               </label>
@@ -122,7 +122,7 @@
                 <span>Skip (frames)</span>
                 <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
               </label>
-              <div class="tool3-note">The GIF will show the moving comparison of y(n) and y(n+skip) through time.</div>
+              <div class="tool3-note">The GIF will animate a lag plot: variable(n) versus variable(n+skip), which matches the example workbook.</div>
             </div>
           </div>
 
@@ -190,7 +190,7 @@
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a fully local browser-side encoder, so it does not depend on an external GIF worker script.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a fully local browser-side encoder, and the lag-plot option now matches the example workbook format.</div>
             </div>
           </div>
         </div>
@@ -215,7 +215,7 @@
                 <div>
                   <p style="margin-top:0;"><strong>Simple tips</strong></p>
                   <ul class="bullets">
-                    <li>Start with <strong>Fast</strong> quality.</li>
+                    <li>For the example workbook, try the lag-plot option first.</li>
                     <li>Use fewer frames if your dataset is very long.</li>
                     <li>The example Excel shows the expected column layout.</li>
                   </ul>
