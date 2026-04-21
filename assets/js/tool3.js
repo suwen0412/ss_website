@@ -19,6 +19,7 @@
   const elZWrap = $("tool3ZWrap");
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
+  const elGifQuality = $("tool3GifQuality");
   const elPointSize = $("tool3PointSize");
   const elMakeGif = $("tool3MakeGif");
   const elGifDownload = $("tool3GifDownload");
@@ -432,6 +433,51 @@
     state.gifUrl = "";
   }
 
+
+  function getGifModeConfig() {
+    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
+    if (mode === "high") {
+      return {
+        mode,
+        width: 760,
+        height: 480,
+        maxFrames: 80,
+        defaultFrames: 30,
+        defaultFps: 8,
+        quality: 7,
+        workers: 2
+      };
+    }
+    return {
+      mode,
+      width: 560,
+      height: 360,
+      maxFrames: 60,
+      defaultFrames: 18,
+      defaultFps: 6,
+      quality: 10,
+      workers: 2
+    };
+  }
+
+  function syncGifInputsToMode() {
+    if (!elFrames || !elFps) return;
+    const cfg = getGifModeConfig();
+    elFrames.max = String(cfg.maxFrames);
+    if (!elFrames.dataset.userEdited) elFrames.value = String(cfg.defaultFrames);
+    if (!elFps.dataset.userEdited) elFps.value = String(cfg.defaultFps);
+  }
+
+
+  function dataUrlToImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
   async function loadWorkbookFromFile(file) {
     const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: "array" });
@@ -461,7 +507,7 @@
     return Array.from(new Set(out));
   }
 
-  async function makeTrajectoryFrame(div, d, idx) {
+  async function makeTrajectoryFrame(div, d, idx, exportSize) {
     const pointSize = clampInt(elPointSize.value, 4, 24, 11);
     let traces, layout;
 
@@ -532,81 +578,98 @@
       displaylogo: false
     });
 
+    const ex = exportSize || { width: 560, height: 360 };
     return Plotly.toImage(div, {
       format: "png",
-      width: 800,
-      height: 520
+      width: ex.width,
+      height: ex.height
     });
   }
 
-  async function generateGif() {
-    const d = state.currentTrajectory || getTrajectoryData();
-    if (!d || !d.x || d.x.length < 2) {
-      setGifStatus("Need at least two valid trajectory points before exporting a GIF.");
-      return;
-    }
-
-    showGifCard();
-    setGifStatus("Rendering GIF frames…");
-    revokeGifUrl();
-
-    const nFrames = clampInt(elFrames.value, 8, 120, 28);
-    const fps = clampInt(elFps.value, 1, 20, 8);
-    const idxs = buildFrameIndices(d.x.length, nFrames);
-
-    const offscreen = document.createElement("div");
-    offscreen.style.position = "fixed";
-    offscreen.style.left = "-99999px";
-    offscreen.style.top = "0";
-    offscreen.style.width = "800px";
-    offscreen.style.height = "520px";
-    document.body.appendChild(offscreen);
-
-    const images = [];
-    try {
-      for (let i = 0; i < idxs.length; i++) {
-        setGifStatus(`Rendering frame ${i + 1} of ${idxs.length}…`);
-        const url = await makeTrajectoryFrame(offscreen, d, idxs[i]);
-        images.push(url);
-      }
-    } catch (err) {
-      console.error(err);
-      setGifDownloadEnabled(false);
-      setGifStatus("GIF frame rendering failed. Try fewer frames or switch to 2D mode.");
-      document.body.removeChild(offscreen);
-      return;
-    }
-
-    document.body.removeChild(offscreen);
-    setGifStatus("Encoding GIF…");
-
-    window.gifshot.createGIF(
-      {
-        images,
-        gifWidth: 800,
-        gifHeight: 520,
-        interval: 1 / fps,
-        numFrames: images.length
-      },
-      function (obj) {
-        if (!obj || obj.error || !obj.image) {
-          setGifDownloadEnabled(false);
-          setGifStatus("GIF encoding failed in the browser.");
-          return;
-        }
-
-        revokeGifUrl();
-        state.gifUrl = obj.image;
-
-        if (elGifPreview) {
-          elGifPreview.innerHTML = `<img src="${obj.image}" alt="Trajectory GIF preview" />`;
-        }
-        setGifDownloadEnabled(true, obj.image);
-        setGifStatus(`GIF ready. ${images.length} frames at ${fps} fps.`);
-      }
-    );
+  
+async function generateGif() {
+  const d = state.currentTrajectory || getTrajectoryData();
+  if (!d || !d.x || d.x.length < 2) {
+    setGifDownloadEnabled(false);
+    setGifStatus("Need at least two valid trajectory points before exporting a GIF.");
+    return;
   }
 
+  if (!window.GIF) {
+    setGifDownloadEnabled(false);
+    setGifStatus("GIF encoder did not load. Refresh the page and try again.");
+    return;
+  }
+
+  showGifCard();
+  setGifDownloadEnabled(false);
+  setGifStatus("Rendering GIF frames…");
+  revokeGifUrl();
+
+  const nFrames = clampInt(elFrames.value, 8, 60, 18);
+  const fps = clampInt(elFps.value, 1, 20, 6);
+  const idxs = buildFrameIndices(d.x.length, nFrames);
+
+  const offscreen = document.createElement("div");
+  offscreen.style.position = "fixed";
+  offscreen.style.left = "-99999px";
+  offscreen.style.top = "0";
+  offscreen.style.width = "560px";
+  offscreen.style.height = "360px";
+  document.body.appendChild(offscreen);
+
+  const delay = Math.max(40, Math.round(1000 / fps));
+  const gif = new window.GIF({
+    workers: 2,
+    quality: 10,
+    width: 560,
+    height: 360,
+    workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
+  });
+
+  try {
+    for (let i = 0; i < idxs.length; i++) {
+      setGifStatus(`Rendering frame ${i + 1} of ${idxs.length}…`);
+      const dataUrl = await makeTrajectoryFrame(offscreen, d, idxs[i]);
+      const img = await dataUrlToImage(dataUrl);
+      gif.addFrame(img, { delay, copy: true });
+    }
+  } catch (err) {
+    console.error(err);
+    setGifDownloadEnabled(false);
+    setGifStatus("GIF frame rendering failed. Try fewer frames or switch to 2D mode.");
+    document.body.removeChild(offscreen);
+    return;
+  }
+
+  document.body.removeChild(offscreen);
+  setGifStatus("Encoding GIF…");
+
+  gif.on("progress", (p) => {
+    const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
+    setGifStatus(`Encoding GIF… ${pct}%`);
+  });
+
+  gif.on("finished", (blob) => {
+    revokeGifUrl();
+    state.gifUrl = URL.createObjectURL(blob);
+
+    if (elGifPreview) {
+      elGifPreview.innerHTML = `<img src="${state.gifUrl}" alt="Trajectory GIF preview" />`;
+    }
+    setGifDownloadEnabled(true, state.gifUrl);
+    setGifStatus(`GIF ready. ${idxs.length} frames at ${fps} fps.`);
+  });
+
+  gif.on("abort", () => {
+    setGifDownloadEnabled(false);
+    setGifStatus("GIF encoding was aborted.");
+  });
+
+  gif.render();
+}
+
+function handleSheetChange() {
   function handleSheetChange() {
     parseSheet(elSheet.value);
     refreshControls();
@@ -643,8 +706,25 @@
     elMakeGif.addEventListener("click", generateGif);
   }
 
+
+
+  if (elFrames) {
+    elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
+  }
+  if (elFps) {
+    elFps.addEventListener("input", () => { elFps.dataset.userEdited = "1"; });
+  }
+  if (elGifQuality) {
+    elGifQuality.addEventListener("change", () => {
+      if (elFrames) delete elFrames.dataset.userEdited;
+      if (elFps) delete elFps.dataset.userEdited;
+      syncGifInputsToMode();
+    });
+  }
+
   // ---- Initial placeholder ----
   updatePanels();
+  syncGifInputsToMode();
   setGifDownloadEnabled(false);
   renderCurrentPlot();
 })();
