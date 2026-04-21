@@ -3,9 +3,15 @@
 
   const elFile = $("tool3File");
   const elSheet = $("tool3Sheet");
-  const elSkip = $("tool3Skip");
-  const elTime = $("tool3Time");
+  const elPlotType = $("tool3PlotType");
+  const elShiftPanel = $("tool3ShiftPanel");
+  const elTrajPanel = $("tool3TrajectoryPanel");
+
+  const elTimeShift = $("tool3TimeShift");
   const elShiftVar = $("tool3ShiftVar");
+  const elSkip = $("tool3Skip");
+
+  const elTimeTraj = $("tool3TimeTraj");
   const elMode = $("tool3Mode");
   const elX = $("tool3X");
   const elY = $("tool3Y");
@@ -14,20 +20,18 @@
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
   const elPointSize = $("tool3PointSize");
-  const elRenderShift = $("tool3RenderShift");
-  const elRenderTrajectory = $("tool3RenderTrajectory");
   const elMakeGif = $("tool3MakeGif");
   const elGifDownload = $("tool3GifDownload");
-  const elGifPreview = $("tool3GifPreview");
-  const elLoadStatus = $("tool3LoadStatus");
   const elGifStatus = $("tool3GifStatus");
-  const elSummary = $("tool3Summary");
-  const elShiftPlot = $("tool3ShiftPlot");
-  const elTrajectoryPlot = $("tool3TrajectoryPlot");
-  const elShiftMeta = $("tool3ShiftMeta");
-  const elTrajMeta = $("tool3TrajMeta");
+  const elGifPreview = $("tool3GifPreview");
+  const elGifCard = $("tool3GifCard");
 
-  if (!elFile || !elSheet || !elTime || !elShiftPlot || !elTrajectoryPlot) return;
+  const elLoadStatus = $("tool3LoadStatus");
+  const elSummary = $("tool3Summary");
+  const elPlot = $("tool3Plot");
+  const elMeta = $("tool3Meta");
+
+  if (!elFile || !elSheet || !elPlotType || !elPlot) return;
 
   const state = {
     workbook: null,
@@ -37,7 +41,7 @@
     rows: [],
     numericHeaders: [],
     gifUrl: "",
-    currentTrajectory: null,
+    currentTrajectory: null
   };
 
   function safeText(v) {
@@ -52,10 +56,8 @@
     if (elGifStatus) elGifStatus.textContent = msg;
   }
 
-  function clampInt(v, lo, hi, fallback) {
-    const n = parseInt(v, 10);
-    if (!Number.isFinite(n)) return fallback;
-    return Math.max(lo, Math.min(hi, n));
+  function setMeta(msg) {
+    if (elMeta) elMeta.textContent = msg;
   }
 
   function num(v) {
@@ -65,22 +67,34 @@
     return Number.isFinite(n) ? n : NaN;
   }
 
+  function clampInt(v, lo, hi, fallback) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(lo, Math.min(hi, n));
+  }
+
   function uniqueHeaders(row0) {
     const used = new Map();
-    return row0.map((v, idx) => {
-      let base = safeText(v) || `Column ${idx + 1}`;
-      if (!used.has(base)) {
-        used.set(base, 1);
-        return base;
-      }
-      const next = used.get(base) + 1;
-      used.set(base, next);
-      return `${base} (${next})`;
+    return row0.map((raw, i) => {
+      let key = safeText(raw) || `Column ${i + 1}`;
+      const seen = used.get(key) || 0;
+      used.set(key, seen + 1);
+      return seen ? `${key} (${seen + 1})` : key;
     });
   }
 
-  function optionHTML(items, selected) {
-    return items.map((v) => `<option value="${escapeHtml(v)}" ${v === selected ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
+  function optionList(selectEl, values, preferred) {
+    if (!selectEl) return;
+    selectEl.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+    if (!values.length) {
+      selectEl.innerHTML = `<option value="">No columns available</option>`;
+      return;
+    }
+    if (preferred && values.includes(preferred)) {
+      selectEl.value = preferred;
+    } else if (!values.includes(selectEl.value)) {
+      selectEl.value = values[0];
+    }
   }
 
   function escapeHtml(s) {
@@ -92,497 +106,529 @@
       .replaceAll("'", "&#039;");
   }
 
-  function inferTimeHeader(headers) {
-    const hit = headers.find((h) => /time|t/i.test(h));
-    return hit || headers[0] || "";
-  }
+  function parseSheet(name) {
+    if (!state.workbook || !name) return;
+    const ws = state.workbook.Sheets[name];
+    if (!ws) return;
 
-  function inferVariableHeaders(headers, timeHeader) {
-    const vars = headers.filter((h) => h !== timeHeader);
-    return vars;
-  }
+    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    if (!matrix.length) {
+      state.headers = [];
+      state.rows = [];
+      state.numericHeaders = [];
+      return;
+    }
 
-  function summarize() {
-    if (!elSummary) return;
-    const rows = Math.max(0, state.rows.length);
-    const chips = [
-      { label: "File", value: state.fileName || "—" },
-      { label: "Rows", value: rows },
-      { label: "Columns", value: state.headers.length },
-      { label: "Numeric columns", value: state.numericHeaders.length },
-    ];
-    elSummary.innerHTML = chips.map((c) => `<div class="tool3-chip"><strong>${escapeHtml(c.label)}:</strong> ${escapeHtml(c.value)}</div>`).join("");
-  }
-
-  function setModeUI() {
-    if (!elMode || !elZWrap) return;
-    elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
-  }
-
-  function buildRows(raw) {
-    if (!raw || !raw.length) return { headers: [], rows: [], numericHeaders: [] };
-    const headers = uniqueHeaders(raw[0]);
-    const rows = raw.slice(1)
-      .map((r) => {
-        const out = {};
-        headers.forEach((h, i) => { out[h] = r[i]; });
-        return out;
+    const headers = uniqueHeaders(matrix[0]);
+    const rows = matrix.slice(1)
+      .map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = r[i]; });
+        return obj;
       })
-      .filter((obj) => headers.some((h) => safeText(obj[h]) !== ""));
+      .filter(obj => Object.values(obj).some(v => safeText(v) !== ""));
 
     const numericHeaders = headers.filter((h) => {
-      let cnt = 0;
+      let valid = 0;
+      let numeric = 0;
       for (const row of rows) {
-        if (Number.isFinite(num(row[h]))) cnt += 1;
-        if (cnt >= 3) return true;
+        const v = row[h];
+        if (safeText(v) === "") continue;
+        valid += 1;
+        if (Number.isFinite(num(v))) numeric += 1;
       }
-      return false;
+      return valid > 0 && numeric / valid >= 0.7;
     });
 
-    return { headers, rows, numericHeaders };
+    state.sheetName = name;
+    state.headers = headers;
+    state.rows = rows;
+    state.numericHeaders = numericHeaders;
   }
 
-  function populateSelectors() {
-    const timeHeader = inferTimeHeader(state.numericHeaders.length ? state.numericHeaders : state.headers);
-    const vars = inferVariableHeaders(state.numericHeaders.length ? state.numericHeaders : state.headers, timeHeader);
-    const xDefault = vars[0] || timeHeader || "";
-    const yDefault = vars[1] || vars[0] || timeHeader || "";
-    const zDefault = vars[2] || vars[1] || vars[0] || timeHeader || "";
-
-    elTime.innerHTML = optionHTML(state.numericHeaders.length ? state.numericHeaders : state.headers, timeHeader);
-    elShiftVar.innerHTML = optionHTML(vars, vars[0] || "");
-    elX.innerHTML = optionHTML(vars, xDefault);
-    elY.innerHTML = optionHTML(vars, yDefault);
-    elZ.innerHTML = optionHTML(vars, zDefault);
-    setModeUI();
+  function guessTimeColumn() {
+    const lower = state.headers.map(h => h.toLowerCase());
+    const exact = ["time", "t", "time (s)", "time(s)", "timestamp"];
+    for (const target of exact) {
+      const idx = lower.indexOf(target);
+      if (idx >= 0) return state.headers[idx];
+    }
+    const partial = state.headers.find(h => h.toLowerCase().includes("time"));
+    return partial || state.headers[0] || "";
   }
 
-  function parseWorkbook(buffer, name) {
-    const isCsv = /\.csv$/i.test(name || "");
-    const wb = isCsv
-      ? XLSX.read(buffer, { type: "array", raw: true, codepage: 65001 })
-      : XLSX.read(buffer, { type: "array", raw: true });
-    return wb;
+  function refreshControls() {
+    const timeGuess = guessTimeColumn();
+    optionList(elTimeShift, state.headers, timeGuess);
+    optionList(elTimeTraj, state.headers, timeGuess);
+
+    const numeric = state.numericHeaders.length ? state.numericHeaders : state.headers;
+    const nonTimeNumeric = numeric.filter(h => h !== timeGuess);
+    const choices = nonTimeNumeric.length ? nonTimeNumeric : numeric;
+
+    optionList(elShiftVar, choices, choices[0] || "");
+    optionList(elX, choices, choices[0] || "");
+    optionList(elY, choices, choices[1] || choices[0] || "");
+    optionList(elZ, choices, choices[2] || choices[0] || "");
+
+    setLoadStatus(
+      state.rows.length
+        ? `Loaded ${state.rows.length} rows from “${state.sheetName}”.`
+        : "No usable rows were found in this sheet."
+    );
   }
 
-  function loadSheet(sheetName) {
-    if (!state.workbook || !sheetName) return;
-    const ws = state.workbook.Sheets[sheetName];
-    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
-    const built = buildRows(raw);
-    state.sheetName = sheetName;
-    state.headers = built.headers;
-    state.rows = built.rows;
-    state.numericHeaders = built.numericHeaders;
-    populateSelectors();
-    summarize();
-    setLoadStatus(`Loaded ${state.fileName || "file"} • Sheet: ${sheetName} • ${state.rows.length} data rows.`);
-    elShiftMeta.textContent = "Ready";
-    elTrajMeta.textContent = "Ready";
+  function getSeries(header) {
+    return state.rows.map((row, idx) => ({
+      raw: row[header],
+      num: num(row[header]),
+      index: idx
+    }));
   }
 
-  function getShiftSeries() {
-    const timeCol = elTime.value;
-    const varCol = elShiftVar.value;
+  function getShiftData() {
+    const tCol = elTimeShift.value;
+    const yCol = elShiftVar.value;
     const skip = clampInt(elSkip.value, 1, 100000, 1);
-    if (!timeCol || !varCol) throw new Error("Choose a time column and variable first.");
 
-    const x = [];
-    const y = [];
-    for (let i = 0; i < state.rows.length - skip; i++) {
-      const t = num(state.rows[i][timeCol]);
-      const v = num(state.rows[i + skip][varCol]);
-      if (Number.isFinite(t) && Number.isFinite(v)) {
-        x.push(t);
-        y.push(v);
+    const tSeries = getSeries(tCol);
+    const ySeries = getSeries(yCol);
+    const n = Math.max(0, ySeries.length - skip);
+
+    const t = [];
+    const yn = [];
+    const ynp = [];
+
+    for (let i = 0; i < n; i++) {
+      const tRaw = tSeries[i].raw;
+      const y0 = ySeries[i].num;
+      const y1 = ySeries[i + skip].num;
+      if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
+      t.push(tRaw === "" ? i : tRaw);
+      yn.push(y0);
+      ynp.push(y1);
+    }
+
+    return { tCol, yCol, skip, t, yn, ynp };
+  }
+
+  function renderShiftPlot() {
+    const d = getShiftData();
+
+    const traces = [
+      {
+        x: d.t,
+        y: d.yn,
+        mode: "lines",
+        name: `${d.yCol} (n)`,
+        line: { width: 3 }
+      },
+      {
+        x: d.t,
+        y: d.ynp,
+        mode: "lines",
+        name: `${d.yCol} (n+${d.skip})`,
+        line: { width: 3, dash: "dash" }
       }
+    ];
+
+    const layout = {
+      title: `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`,
+      margin: { l: 62, r: 24, t: 56, b: 58 },
+      xaxis: { title: d.tCol },
+      yaxis: { title: d.yCol },
+      legend: { orientation: "h", y: 1.12 },
+      paper_bgcolor: "#fff",
+      plot_bgcolor: "#fff"
+    };
+
+    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+    setMeta(`Showing ${d.yn.length} aligned points. Time column: ${d.tCol}. Skip = ${d.skip}.`);
+    if (elSummary) {
+      elSummary.textContent = "Plot type A: shifted-frame time plot. This overlays y(n) and y(n+skip) against the same time axis.";
     }
-    if (!x.length) throw new Error("No numeric rows available for the selected time / variable combination.");
-    return { x, y, timeCol, varCol, skip };
+    state.currentTrajectory = null;
+    hideGifOutput();
   }
 
-  function axisBounds(arr) {
-    const vals = arr.filter((v) => Number.isFinite(v));
-    if (!vals.length) return [0, 1];
-    let lo = Math.min(...vals), hi = Math.max(...vals);
-    if (lo === hi) {
-      const pad = Math.abs(lo || 1) * 0.15;
-      return [lo - pad, hi + pad];
-    }
-    const pad = (hi - lo) * 0.08;
-    return [lo - pad, hi + pad];
-  }
-
-  function getTrajectorySeries() {
+  function getTrajectoryData() {
     const mode = elMode.value;
     const xCol = elX.value;
     const yCol = elY.value;
     const zCol = elZ.value;
-    if (!xCol || !yCol || (mode === "3d" && !zCol)) {
-      throw new Error("Choose the required variable columns first.");
+    const tCol = elTimeTraj.value;
+
+    const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
+
+    for (const row of state.rows) {
+      const xv = num(row[xCol]);
+      const yv = num(row[yCol]);
+      const zv = num(row[zCol]);
+      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
+      if (mode === "3d" && !Number.isFinite(zv)) continue;
+
+      out.x.push(xv);
+      out.y.push(yv);
+      if (mode === "3d") out.z.push(zv);
+      out.t.push(row[tCol]);
     }
-
-    const x = [];
-    const y = [];
-    const z = [];
-    const t = [];
-    const timeCol = elTime.value;
-
-    for (let i = 0; i < state.rows.length; i++) {
-      const xv = num(state.rows[i][xCol]);
-      const yv = num(state.rows[i][yCol]);
-      const zv = mode === "3d" ? num(state.rows[i][zCol]) : NaN;
-      const tv = num(state.rows[i][timeCol]);
-      const ok = mode === "3d"
-        ? Number.isFinite(xv) && Number.isFinite(yv) && Number.isFinite(zv)
-        : Number.isFinite(xv) && Number.isFinite(yv);
-      if (ok) {
-        x.push(xv);
-        y.push(yv);
-        if (mode === "3d") z.push(zv);
-        t.push(Number.isFinite(tv) ? tv : i);
-      }
-    }
-
-    if (!x.length) throw new Error("No numeric rows available for the selected trajectory columns.");
-    return { mode, xCol, yCol, zCol, x, y, z, t };
-  }
-
-  function renderShiftPlot() {
-    const data = getShiftSeries();
-    const trace = {
-      type: "scatter",
-      mode: "lines",
-      x: data.x,
-      y: data.y,
-      line: { width: 3 },
-      name: `${data.varCol}(n+${data.skip})`
-    };
-    const layout = {
-      title: `${data.varCol}(n+${data.skip}) over ${data.timeCol}`,
-      margin: { l: 70, r: 30, t: 60, b: 70 },
-      paper_bgcolor: "#ffffff",
-      plot_bgcolor: "#ffffff",
-      xaxis: { title: data.timeCol, zeroline: false },
-      yaxis: { title: `${data.varCol}(n+${data.skip})`, zeroline: false },
-      legend: { orientation: "h", y: -0.18 }
-    };
-    Plotly.react(elShiftPlot, [trace], layout, { responsive: true, displaylogo: false });
-    elShiftMeta.textContent = `${data.varCol} • skip ${data.skip}`;
+    return out;
   }
 
   function renderTrajectoryPlot() {
-    const data = getTrajectorySeries();
-    const pointSize = clampInt(elPointSize.value, 4, 28, 12);
-    let traces, layout;
+    const d = getTrajectoryData();
+    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
 
-    if (data.mode === "3d") {
+    let traces, layout;
+    if (d.mode === "3d") {
       traces = [
         {
+          x: d.x,
+          y: d.y,
+          z: d.z,
           type: "scatter3d",
           mode: "lines",
-          x: data.x,
-          y: data.y,
-          z: data.z,
-          line: { width: 5 },
-          name: "Trajectory"
+          name: "Trajectory",
+          line: { width: 5 }
         },
         {
+          x: d.x.length ? [d.x[d.x.length - 1]] : [],
+          y: d.y.length ? [d.y[d.y.length - 1]] : [],
+          z: d.z.length ? [d.z[d.z.length - 1]] : [],
           type: "scatter3d",
           mode: "markers",
-          x: [data.x[data.x.length - 1]],
-          y: [data.y[data.y.length - 1]],
-          z: [data.z[data.z.length - 1]],
-          marker: { size: pointSize },
-          name: "Latest point"
+          name: "Current point",
+          marker: { size: pointSize }
         }
       ];
+
       layout = {
-        title: `${data.xCol} vs ${data.yCol} vs ${data.zCol}`,
-        margin: { l: 0, r: 0, t: 60, b: 0 },
-        paper_bgcolor: "#ffffff",
+        title: `${d.xCol}–${d.yCol}–${d.zCol} trajectory`,
+        margin: { l: 0, r: 0, t: 56, b: 0 },
         scene: {
-          xaxis: { title: data.xCol, range: axisBounds(data.x) },
-          yaxis: { title: data.yCol, range: axisBounds(data.y) },
-          zaxis: { title: data.zCol, range: axisBounds(data.z) },
-          aspectmode: "cube"
+          xaxis: { title: d.xCol },
+          yaxis: { title: d.yCol },
+          zaxis: { title: d.zCol }
         },
-        legend: { orientation: "h", y: 1.02 }
+        legend: { orientation: "h", y: 1.05 },
+        paper_bgcolor: "#fff"
       };
     } else {
       traces = [
         {
+          x: d.x,
+          y: d.y,
           type: "scatter",
           mode: "lines",
-          x: data.x,
-          y: data.y,
-          line: { width: 3 },
-          name: "Trajectory"
+          name: "Trajectory",
+          line: { width: 3 }
         },
         {
+          x: d.x.length ? [d.x[d.x.length - 1]] : [],
+          y: d.y.length ? [d.y[d.y.length - 1]] : [],
           type: "scatter",
           mode: "markers",
-          x: [data.x[data.x.length - 1]],
-          y: [data.y[data.y.length - 1]],
-          marker: { size: pointSize },
-          name: "Latest point"
+          name: "Current point",
+          marker: { size: pointSize }
         }
       ];
+
       layout = {
-        title: `${data.xCol} vs ${data.yCol}`,
-        margin: { l: 70, r: 30, t: 60, b: 70 },
-        paper_bgcolor: "#ffffff",
-        plot_bgcolor: "#ffffff",
-        xaxis: { title: data.xCol, range: axisBounds(data.x), zeroline: false },
-        yaxis: { title: data.yCol, range: axisBounds(data.y), zeroline: false },
-        legend: { orientation: "h", y: -0.18 }
+        title: `${d.xCol}–${d.yCol} trajectory`,
+        margin: { l: 62, r: 24, t: 56, b: 58 },
+        xaxis: { title: d.xCol },
+        yaxis: { title: d.yCol },
+        legend: { orientation: "h", y: 1.12 },
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
       };
     }
 
-    Plotly.react(elTrajectoryPlot, traces, layout, { responsive: true, displaylogo: false });
-    state.currentTrajectory = data;
-    elTrajMeta.textContent = data.mode === "3d"
-      ? `${data.xCol}, ${data.yCol}, ${data.zCol}`
-      : `${data.xCol}, ${data.yCol}`;
-    setGifStatus("Trajectory ready. Generate the GIF when you want.");
+    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+    setMeta(`Showing ${d.x.length} valid trajectory points ordered by ${d.tCol}.`);
+    if (elSummary) {
+      elSummary.textContent = "Plot type B: variable trajectory. Choose 2D or 3D, then optionally export a moving-point GIF.";
+    }
+    state.currentTrajectory = d;
+    showGifCard();
   }
 
-  function evenlySpacedIndices(n, frames) {
-    if (n <= 0) return [];
-    if (frames >= n) return Array.from({ length: n }, (_, i) => i);
+  function renderCurrentPlot() {
+    if (!state.rows.length) {
+      Plotly.react(
+        elPlot,
+        [],
+        {
+          annotations: [{
+            text: "Upload a file to begin.",
+            showarrow: false,
+            xref: "paper",
+            yref: "paper",
+            x: 0.5,
+            y: 0.5,
+            font: { size: 18, color: "#6b7280" }
+          }],
+          xaxis: { visible: false },
+          yaxis: { visible: false },
+          margin: { l: 0, r: 0, t: 10, b: 0 },
+          paper_bgcolor: "#fff",
+          plot_bgcolor: "#fff"
+        },
+        { responsive: true, displaylogo: false }
+      );
+      setMeta("Load a file to preview your plot here.");
+      return;
+    }
+
+    if (elPlotType.value === "shift") {
+      renderShiftPlot();
+    } else {
+      renderTrajectoryPlot();
+    }
+  }
+
+  function updatePanels() {
+    const isShift = elPlotType.value === "shift";
+    elShiftPanel.classList.toggle("tool3-hidden", !isShift);
+    elTrajPanel.classList.toggle("tool3-hidden", isShift);
+    elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
+    if (isShift) {
+      hideGifOutput();
+    } else {
+      showGifCard();
+    }
+  }
+
+  function hideGifOutput() {
+    if (elGifCard) elGifCard.classList.add("tool3-hidden");
+    if (elGifDownload) elGifDownload.classList.add("tool3-hidden");
+    setGifStatus("GIF export is available for the trajectory plot.");
+  }
+
+  function showGifCard() {
+    if (elGifCard) elGifCard.classList.remove("tool3-hidden");
+  }
+
+  function revokeGifUrl() {
+    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(state.gifUrl);
+    }
+    state.gifUrl = "";
+  }
+
+  async function loadWorkbookFromFile(file) {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array" });
+
+    state.workbook = wb;
+    state.fileName = file.name || "uploaded file";
+
+    const sheets = wb.SheetNames || [];
+    elSheet.innerHTML = sheets.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    if (sheets.length) {
+      parseSheet(sheets[0]);
+      refreshControls();
+      renderCurrentPlot();
+    } else {
+      setLoadStatus("This file did not contain any readable sheets.");
+    }
+  }
+
+  function buildFrameIndices(nPoints, nFrames) {
+    if (nPoints <= 1) return [0];
+    const steps = Math.max(2, nFrames);
     const out = [];
-    for (let i = 0; i < frames; i++) {
-      const idx = Math.round((i * (n - 1)) / (frames - 1));
+    for (let i = 0; i < steps; i++) {
+      const idx = Math.round((i / (steps - 1)) * (nPoints - 1));
       out.push(idx);
     }
     return Array.from(new Set(out));
   }
 
-  function loadImage(url) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
+  async function makeTrajectoryFrame(div, d, idx) {
+    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
+    let traces, layout;
 
-  async function buildFrame(tempDiv, spec, idx, pointSize) {
-    if (spec.mode === "3d") {
-      const traces = [
+    if (d.mode === "3d") {
+      traces = [
         {
+          x: d.x.slice(0, idx + 1),
+          y: d.y.slice(0, idx + 1),
+          z: d.z.slice(0, idx + 1),
           type: "scatter3d",
           mode: "lines",
-          x: spec.x.slice(0, idx + 1),
-          y: spec.y.slice(0, idx + 1),
-          z: spec.z.slice(0, idx + 1),
           line: { width: 5 },
           name: "Trajectory"
         },
         {
+          x: [d.x[idx]],
+          y: [d.y[idx]],
+          z: [d.z[idx]],
           type: "scatter3d",
           mode: "markers",
-          x: [spec.x[idx]],
-          y: [spec.y[idx]],
-          z: [spec.z[idx]],
           marker: { size: pointSize },
-          name: "Moving point"
+          name: "Current point"
         }
       ];
-      const layout = {
-        title: `${spec.xCol} vs ${spec.yCol} vs ${spec.zCol}`,
-        width: 720,
-        height: 520,
-        margin: { l: 0, r: 0, t: 60, b: 0 },
-        paper_bgcolor: "#ffffff",
+      layout = {
+        title: `${d.xCol}–${d.yCol}–${d.zCol} trajectory`,
+        margin: { l: 0, r: 0, t: 50, b: 0 },
         scene: {
-          xaxis: { title: spec.xCol, range: axisBounds(spec.x) },
-          yaxis: { title: spec.yCol, range: axisBounds(spec.y) },
-          zaxis: { title: spec.zCol, range: axisBounds(spec.z) },
-          aspectmode: "cube"
+          xaxis: { title: d.xCol },
+          yaxis: { title: d.yCol },
+          zaxis: { title: d.zCol }
         },
-        showlegend: false
+        paper_bgcolor: "#fff"
       };
-      await Plotly.react(tempDiv, traces, layout, { staticPlot: true, displayModeBar: false, responsive: false });
     } else {
-      const traces = [
+      traces = [
         {
+          x: d.x.slice(0, idx + 1),
+          y: d.y.slice(0, idx + 1),
           type: "scatter",
           mode: "lines",
-          x: spec.x.slice(0, idx + 1),
-          y: spec.y.slice(0, idx + 1),
           line: { width: 3 },
           name: "Trajectory"
         },
         {
+          x: [d.x[idx]],
+          y: [d.y[idx]],
           type: "scatter",
           mode: "markers",
-          x: [spec.x[idx]],
-          y: [spec.y[idx]],
           marker: { size: pointSize },
-          name: "Moving point"
+          name: "Current point"
         }
       ];
-      const layout = {
-        title: `${spec.xCol} vs ${spec.yCol}`,
-        width: 720,
-        height: 520,
-        margin: { l: 70, r: 30, t: 60, b: 70 },
-        paper_bgcolor: "#ffffff",
-        plot_bgcolor: "#ffffff",
-        xaxis: { title: spec.xCol, range: axisBounds(spec.x), zeroline: false },
-        yaxis: { title: spec.yCol, range: axisBounds(spec.y), zeroline: false },
-        showlegend: false
+      layout = {
+        title: `${d.xCol}–${d.yCol} trajectory`,
+        margin: { l: 62, r: 24, t: 50, b: 56 },
+        xaxis: { title: d.xCol },
+        yaxis: { title: d.yCol },
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
       };
-      await Plotly.react(tempDiv, traces, layout, { staticPlot: true, displayModeBar: false, responsive: false });
     }
-    return Plotly.toImage(tempDiv, { format: "png", width: 720, height: 520, scale: 1 });
+
+    await Plotly.react(div, traces, layout, {
+      responsive: false,
+      staticPlot: true,
+      displayModeBar: false,
+      displaylogo: false
+    });
+
+    return Plotly.toImage(div, {
+      format: "png",
+      width: 800,
+      height: 520
+    });
   }
 
   async function generateGif() {
-    if (!state.currentTrajectory) {
-      renderTrajectoryPlot();
+    const d = state.currentTrajectory || getTrajectoryData();
+    if (!d || !d.x || d.x.length < 2) {
+      setGifStatus("Need at least two valid trajectory points before exporting a GIF.");
+      return;
     }
-    if (!state.currentTrajectory) throw new Error("Render plot 2 first.");
-    if (typeof GIF === "undefined") throw new Error("GIF library did not load.");
 
-    const spec = state.currentTrajectory;
-    const frames = clampInt(elFrames.value, 8, 180, 48);
-    const fps = clampInt(elFps.value, 2, 30, 12);
-    const pointSize = clampInt(elPointSize.value, 4, 28, 12);
-    const indices = evenlySpacedIndices(spec.x.length, frames);
-    if (!indices.length) throw new Error("No valid frames available for GIF generation.");
+    showGifCard();
+    setGifStatus("Rendering GIF frames…");
+    revokeGifUrl();
 
-    setGifStatus(`Building ${indices.length} frame(s)...`);
-    elGifDownload.classList.add("tool3-hidden");
-    elGifPreview.style.display = "none";
+    const nFrames = clampInt(elFrames.value, 8, 120, 28);
+    const fps = clampInt(elFps.value, 1, 20, 8);
+    const idxs = buildFrameIndices(d.x.length, nFrames);
 
-    const tempDiv = document.createElement("div");
-    tempDiv.style.position = "fixed";
-    tempDiv.style.left = "-99999px";
-    tempDiv.style.top = "0";
-    tempDiv.style.width = "720px";
-    tempDiv.style.height = "520px";
-    document.body.appendChild(tempDiv);
+    const offscreen = document.createElement("div");
+    offscreen.style.position = "fixed";
+    offscreen.style.left = "-99999px";
+    offscreen.style.top = "0";
+    offscreen.style.width = "800px";
+    offscreen.style.height = "520px";
+    document.body.appendChild(offscreen);
 
-    const gif = new GIF({
-      workers: 2,
-      quality: 10,
-      width: 720,
-      height: 520,
-      workerScript: "https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js"
-    });
-
-    gif.on("progress", (p) => {
-      setGifStatus(`Encoding GIF… ${Math.round(p * 100)}%`);
-    });
-
-    const finished = new Promise((resolve) => {
-      gif.on("finished", resolve);
-    });
-
+    const images = [];
     try {
-      for (let i = 0; i < indices.length; i++) {
-        const idx = indices[i];
-        setGifStatus(`Rendering frame ${i + 1} / ${indices.length}...`);
-        const url = await buildFrame(tempDiv, spec, idx, pointSize);
-        const img = await loadImage(url);
-        gif.addFrame(img, { delay: Math.round(1000 / fps), copy: true });
+      for (let i = 0; i < idxs.length; i++) {
+        setGifStatus(`Rendering frame ${i + 1} of ${idxs.length}…`);
+        const url = await makeTrajectoryFrame(offscreen, d, idxs[i]);
+        images.push(url);
       }
-      gif.render();
-      const blob = await finished;
-      if (state.gifUrl) URL.revokeObjectURL(state.gifUrl);
-      state.gifUrl = URL.createObjectURL(blob);
-      elGifDownload.href = state.gifUrl;
-      elGifDownload.classList.remove("tool3-hidden");
-      elGifPreview.src = state.gifUrl;
-      elGifPreview.style.display = "block";
-      setGifStatus("GIF ready. You can preview it below and download it.");
-    } finally {
-      try { Plotly.purge(tempDiv); } catch (e) {}
-      tempDiv.remove();
+    } catch (err) {
+      console.error(err);
+      setGifStatus("GIF frame rendering failed. Try fewer frames or switch to 2D mode.");
+      document.body.removeChild(offscreen);
+      return;
     }
+
+    document.body.removeChild(offscreen);
+    setGifStatus("Encoding GIF…");
+
+    window.gifshot.createGIF(
+      {
+        images,
+        gifWidth: 800,
+        gifHeight: 520,
+        interval: 1 / fps,
+        numFrames: images.length
+      },
+      function (obj) {
+        if (!obj || obj.error || !obj.image) {
+          setGifStatus("GIF encoding failed in the browser.");
+          return;
+        }
+
+        revokeGifUrl();
+        state.gifUrl = obj.image;
+
+        if (elGifPreview) {
+          elGifPreview.innerHTML = `<img src="${obj.image}" alt="Trajectory GIF preview" />`;
+        }
+        if (elGifDownload) {
+          elGifDownload.href = obj.image;
+          elGifDownload.classList.remove("tool3-hidden");
+        }
+        setGifStatus(`GIF ready. ${images.length} frames at ${fps} fps.`);
+      }
+    );
   }
 
-  function ensureWorkbookReady() {
-    if (!state.workbook) throw new Error("Upload a workbook first.");
+  function handleSheetChange() {
+    parseSheet(elSheet.value);
+    refreshControls();
+    renderCurrentPlot();
   }
 
-  async function handleFile(file) {
-    const buffer = await file.arrayBuffer();
-    state.workbook = parseWorkbook(buffer, file.name);
-    state.fileName = file.name;
-    const names = state.workbook.SheetNames || [];
-    elSheet.innerHTML = optionHTML(names, names[0] || "");
-    if (!names.length) throw new Error("No sheets were found in this workbook.");
-    loadSheet(names[0]);
-  }
-
+  // ---- Bind events ----
   elFile.addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    setLoadStatus(`Reading ${file.name}…`);
     try {
-      setLoadStatus(`Reading ${file.name}...`);
-      await handleFile(file);
+      await loadWorkbookFromFile(file);
     } catch (err) {
       console.error(err);
-      setLoadStatus(err && err.message ? err.message : "Could not read that file.");
+      setLoadStatus("Could not read that file. Please try an Excel or CSV file.");
     }
   });
 
-  elSheet.addEventListener("change", () => {
-    try {
-      ensureWorkbookReady();
-      loadSheet(elSheet.value);
-    } catch (err) {
-      console.error(err);
-      setLoadStatus(err && err.message ? err.message : "Could not load that sheet.");
-    }
+  elSheet.addEventListener("change", handleSheetChange);
+
+  [elPlotType, elTimeShift, elShiftVar, elSkip, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", () => {
+      updatePanels();
+      renderCurrentPlot();
+    });
+    el.addEventListener("input", () => {
+      if (el === elSkip || el === elPointSize) renderCurrentPlot();
+    });
   });
 
-  elMode.addEventListener("change", setModeUI);
+  if (elMakeGif) {
+    elMakeGif.addEventListener("click", generateGif);
+  }
 
-  elRenderShift.addEventListener("click", () => {
-    try {
-      ensureWorkbookReady();
-      renderShiftPlot();
-    } catch (err) {
-      console.error(err);
-      elShiftMeta.textContent = "Plot not ready";
-      setLoadStatus(err && err.message ? err.message : "Could not render plot 1.");
-    }
-  });
-
-  elRenderTrajectory.addEventListener("click", () => {
-    try {
-      ensureWorkbookReady();
-      renderTrajectoryPlot();
-    } catch (err) {
-      console.error(err);
-      elTrajMeta.textContent = "Plot not ready";
-      setGifStatus(err && err.message ? err.message : "Could not render plot 2.");
-    }
-  });
-
-  elMakeGif.addEventListener("click", async () => {
-    try {
-      ensureWorkbookReady();
-      await generateGif();
-    } catch (err) {
-      console.error(err);
-      setGifStatus(err && err.message ? err.message : "Could not generate the GIF.");
-    }
-  });
-
-  window.addEventListener("resize", () => {
-    try {
-      Plotly.Plots.resize(elShiftPlot);
-      Plotly.Plots.resize(elTrajectoryPlot);
-    } catch (e) {
-      // no-op
-    }
-  });
-
-  setModeUI();
+  // ---- Initial placeholder ----
+  updatePanels();
+  renderCurrentPlot();
 })();

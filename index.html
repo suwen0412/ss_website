@@ -183,83 +183,83 @@
 </div>
 </section>
 <section class="section" id="toolkit">
-  <div class="container narrow">
-    <h2>Toolkit</h2>
-    <div class="cards toolkit-cards">
-      <div class="card">
-        <h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
-        <p>
-          Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
-          workbook directly in your browser. Your file is processed locally on your device (no upload).
-        </p>
-        <div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
-          <label class="toolkit-label">
-            <span>Select a .DTA file</span>
-            <input accept=".dta,.DTA,.txt,text/plain" id="dtaFile" type="file"/>
-          </label>
-          <div class="toolkit-row">
-            <label class="toolkit-check">
-              <input checked="" id="includeHeaderSheet" type="checkbox"/>
-              Include header/metadata sheet
-            </label>
-          </div>
-          <div class="actions">
-            <button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
-            <a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
-          </div>
-          <p aria-live="polite" class="muted small" id="toolkitStatus">
-            Choose a file to enable conversion.
-          </p>
-          <details class="toolkit-details">
-            <summary>What will the Excel contain?</summary>
-            <ul class="bullets" style="margin-top:.5rem">
-              <li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block such as <code>ZCURVE TABLE</code> or <code>CURVE1 TABLE</code>)</li>
-              <li><strong>Columns:</strong> exported as-is from the DTA table</li>
-              <li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
-            </ul>
-          </details>
-        </div>
-      </div>
+<div class="container narrow">
+<h2>Toolkit</h2>
+<div class="cards">
+<div class="card">
+<h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
+<p>
+  Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
+  workbook directly in your browser. Your file is processed locally on your device (no upload).
+</p>
+<div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
+<label class="toolkit-label">
+<span>Select a .DTA file</span>
+<input accept=".dta,.DTA,.txt,text/plain" id="dtaFile" type="file"/>
+</label>
+<div class="toolkit-row">
+<label class="toolkit-check">
+<input checked="" id="includeHeaderSheet" type="checkbox"/>
+      Include header/metadata sheet
+    </label>
+</div>
+<div class="actions">
+<button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
+<a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
+</div>
+<p aria-live="polite" class="muted small" id="toolkitStatus">
+    Choose a file to enable conversion.
+  </p>
+<details class="toolkit-details">
+<summary>What will the Excel contain?</summary>
+<ul class="bullets" style="margin-top:.5rem">
+<li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block (e.g., <code>ZCURVE TABLE</code>, <code>CURVE1 TABLE</code>))</li>
+<li><strong>Columns:</strong> exported as-is from the DTA table</li>
+<li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
+</ul>
+</details>
+</div>
+</div>
 
-      <div class="card">
-        <h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
-        <p>
-          Plot custom equations and overlay them with experimental datasets from Excel/CSV.
-          To keep this page uncluttered, the visualizer opens in a separate tab/window.
-          Everything runs locally in your browser (no uploads).
-        </p>
-        <ul class="bullets">
-          <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
-          <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
-          <li><strong>Overlays:</strong> assign curves and datasets into up to 10 figures</li>
-        </ul>
-        <div class="actions">
-          <a class="btn primary" href="tool2.html" rel="noopener" target="_blank">Open Tool 2 (new window)</a>
-          <a class="btn" href="tool2.html">Open in this tab</a>
-        </div>
-        <p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
-      </div>
+<div class="card">
+<h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
+<p>
+  Plot custom equations and overlay them with experimental datasets from Excel/CSV.
+  To keep this page uncluttered, the visualizer opens in a separate tab/window.
+  Everything runs locally in your browser (no uploads).
+</p>
+<ul class="bullets">
+  <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
+  <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
+  <li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
+</ul>
+<div class="actions">
+  <a class="btn primary" href="tool2.html" target="_blank" rel="noopener">Open Tool 2 (new window)</a>
+  <a class="btn" href="tool2.html">Open in this tab</a>
+</div>
+<p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
+</div>
 
-      <div class="card">
-  <h3>Tool 3 — Time-Dependent Data Visualizer (Online)</h3>
+<div class="card">
+  <h3>Tool 3 — Time-Series Plotter &amp; Trajectory GIF (Online)</h3>
   <p>
-    Upload your Excel workbook, choose the time column and variables, and build online plots directly in the browser.
-    Tool 3 can generate next-frame plots, 2D/3D variable-space trajectories, and a downloadable moving-point GIF.
+    Upload an Excel or CSV file in the browser, choose your columns, and make one of two plot types:
+    a shifted-frame time plot, or a variable trajectory plot in 2D/3D.
   </p>
   <ul class="bullets">
-    <li><strong>Plot 1:</strong> plot <code>x(n+1)</code> (or <code>x(n+skip)</code>) over time</li>
-    <li><strong>Plot 2:</strong> choose variables and switch between 2D and 3D trajectory views</li>
-    <li><strong>Output:</strong> generate a trajectory GIF to preview and download</li>
+    <li><strong>Upload first:</strong> choose a sheet, then select the time/variable columns</li>
+    <li><strong>Plot type A:</strong> plot <code>y(n)</code> and <code>y(n+skip)</code> versus time</li>
+    <li><strong>Plot type B:</strong> plot variable trajectories in <code>2D</code> or <code>3D</code> and export a moving-point GIF</li>
   </ul>
   <div class="actions">
-    <a class="btn primary" href="tool3.html" rel="noopener" target="_blank">Open Tool 3 (new window)</a>
-    <a class="btn" href="tool3.html">Open in this tab</a>
-    <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
+    <a class="btn primary" href="tool3.html">Open Tool 3 (online)</a>
+    <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
   </div>
-  <p class="muted small">Everything runs locally in the browser. Your workbook is not uploaded.</p>
+  <p class="muted small">Everything runs locally in the browser. No server upload is required.</p>
 </div>
-    </div>
-  </div>
+</div>
+</div>
+</div>
 </section>
 <section class="section" id="contact">
 <div class="container narrow">

@@ -3,136 +3,148 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tool 3 — Time-Dependent Data Visualizer</title>
-  <meta name="description" content="Online time-dependent data plotting and GIF generation tool." />
+  <title>Tool 3 — Time-Series Plotter & Trajectory GIF</title>
+  <meta name="description" content="Upload Excel/CSV, choose columns, make shifted-frame plots or 2D/3D trajectories, and export a moving-point GIF." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
   <link href="assets/css/style.css" rel="stylesheet" />
   <style>
     body{ background: var(--alt); }
-    .toolpage-wrap{ padding: 28px 0 44px; }
-    .toolpage-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .toolpage-wrap{ padding: 28px 0 48px; }
+    .toolpage-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
     .toolpage-head h1{ margin:0; font-size: clamp(24px, 3vw, 36px); }
-    .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top: 1rem; }
-    .tool3-left{ width: 360px; flex-shrink:0; position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow:auto; }
+    .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 780px; }
+    .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top:1rem; }
+    .tool3-left{ width:370px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
     .tool3-right{ flex:1 1 auto; min-width:0; }
-    .tool3-card + .tool3-card{ margin-top: 14px; }
-    .tool3-card .card{ padding: 18px; }
-    .tool3-grid-2{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
-    .tool3-grid-3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
-    .tool3-label{ display:flex; flex-direction:column; gap:6px; margin-bottom: 10px; font-weight:600; }
+    .tool3-panel + .tool3-panel{ margin-top:14px; }
+    .tool3-panel .card{ padding:18px; }
+    .tool3-label{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; font-weight:600; }
     .tool3-label span{ font-size:.95rem; }
     .tool3-input, .tool3-select, .tool3-number{
-      width:100%; padding: .72rem .8rem; border-radius: 14px; border:1px solid rgba(0,0,0,.12); background:#fff; font:inherit;
+      width:100%; padding:.72rem .8rem; border-radius:14px; border:1px solid rgba(0,0,0,.12); background:#fff; font:inherit;
     }
-    .tool3-number{ appearance:textfield; }
-    .tool3-hint{ color:#5b6472; font-size:.92rem; margin-top: 4px; }
-    .tool3-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top: 12px; }
-    .tool3-status{ margin-top: 10px; color:#5b6472; font-size:.95rem; min-height: 1.4em; }
-    .tool3-plot{ width:100%; min-height: 450px; }
-    .tool3-mini-plot{ width:100%; min-height: 410px; }
-    .tool3-preview{ width:100%; max-width: 760px; border-radius: 14px; border:1px solid rgba(0,0,0,.12); background:#fff; display:none; }
-    .tool3-kv{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top: 12px; }
-    .tool3-chip{ display:inline-flex; align-items:center; gap: 8px; padding: .45rem .7rem; border-radius: 999px; background: rgba(15,23,42,.05); font-size:.9rem; }
-    .tool3-note{ background: rgba(255,255,255,.82); border:1px solid rgba(0,0,0,.08); border-radius: 16px; padding: .9rem 1rem; }
-    .tool3-row{ display:flex; gap: 10px; flex-wrap:wrap; align-items:center; }
+    .tool3-grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .tool3-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .tool3-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .tool3-note{ color:#5b6472; font-size:.92rem; margin-top:6px; }
+    .tool3-status{ color:#5b6472; font-size:.92rem; margin-top:8px; }
     .tool3-hidden{ display:none !important; }
-    @media (max-width: 980px){
-      .tool3-shell{ flex-direction:column; }
-      .tool3-left{ position: static; width:100%; max-height:none; }
+    .tool3-plotcard .card{ padding:18px; }
+    .tool3-plot{ width:100%; height:620px; border-radius:18px; overflow:hidden; border:1px solid rgba(0,0,0,.08); background:#fff; }
+    .tool3-meta{ margin-top:10px; color:#5b6472; font-size:.95rem; }
+    .tool3-gif-wrap{ display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start; }
+    .tool3-gif-preview{
+      width:100%; min-height:260px; border:1px dashed rgba(0,0,0,.14); border-radius:18px;
+      display:flex; align-items:center; justify-content:center; background:#fff; overflow:hidden;
     }
-    @media (max-width: 720px){
-      .tool3-grid-2, .tool3-grid-3{ grid-template-columns: 1fr; }
-      .tool3-plot, .tool3-mini-plot{ min-height: 340px; }
+    .tool3-gif-preview img{ max-width:100%; display:block; }
+    .tool3-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
+      background:rgba(185,28,28,.08); color:#991b1b; font-size:.86rem; font-weight:700;
+    }
+    @media (max-width: 1020px){
+      .tool3-shell{ flex-direction:column; }
+      .tool3-left{ width:100%; position:static; max-height:none; overflow:visible; }
+      .tool3-gif-wrap{ grid-template-columns:1fr; }
     }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="container nav">
-      <a class="brand" href="index.html">Suwen<span> Shi</span></a>
-      <div class="actions">
-        <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
-      </div>
-    </div>
-  </header>
-
   <main class="toolpage-wrap">
-    <div class="container" style="width:min(1520px,96%);">
+    <div class="container">
       <div class="toolpage-head">
         <div>
-          <h1>Tool 3 — Time-Dependent Data Visualizer</h1>
-          <p class="muted" style="margin:.35rem 0 0; max-width: 900px;">
-            Upload an Excel workbook, choose your time column and variables, then create next-frame plots,
-            2D/3D trajectory plots, and a downloadable moving-point GIF — all directly in your browser.
+          <div class="tool3-badge">Tool 3 · Online</div>
+          <h1>Time-Series Plotter &amp; Trajectory GIF</h1>
+          <p>
+            Upload an Excel or CSV file, choose a sheet and your columns, then make <strong>one</strong> of two plot types:
+            <strong>(A)</strong> a shifted-frame time plot of <code>y(n)</code> and <code>y(n+skip)</code> versus time, or
+            <strong>(B)</strong> a 2D/3D variable trajectory with an exportable moving-point GIF.
           </p>
         </div>
-        <div class="tool3-row">
-          <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
+        <div class="tool3-actions">
+          <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
+          <a class="btn primary" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
         </div>
       </div>
 
       <div class="tool3-shell">
-        <aside class="tool3-left">
-          <div class="tool3-card">
+        <div class="tool3-left">
+          <div class="tool3-panel">
             <div class="card">
-              <h3 style="margin-top:0;">1) Load your data</h3>
+              <h3 style="margin-top:0;">1. Upload data</h3>
               <label class="tool3-label">
-                <span>Excel or CSV file</span>
-                <input class="tool3-input" id="tool3File" type="file" accept=".xlsx,.xls,.csv" />
+                <span>Excel / CSV file</span>
+                <input class="tool3-input" id="tool3File" type="file" accept=".xlsx,.xls,.csv,.txt" />
               </label>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>Sheet</span>
-                  <select class="tool3-select" id="tool3Sheet"></select>
-                </label>
-                <label class="tool3-label">
-                  <span>Frame skip</span>
-                  <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
-                </label>
-              </div>
               <label class="tool3-label">
-                <span>Time column</span>
-                <select class="tool3-select" id="tool3Time"></select>
+                <span>Sheet</span>
+                <select class="tool3-select" id="tool3Sheet"></select>
               </label>
-              <p class="tool3-hint">Use the example file if you want a quick reference for the required table format.</p>
-              <div class="tool3-kv" id="tool3Summary"></div>
-              <div class="tool3-status" id="tool3LoadStatus">Choose a file to begin.</div>
+              <div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
+              <div class="tool3-note">Expected format: one time column plus one or more numeric variable columns.</div>
             </div>
           </div>
 
-          <div class="tool3-card">
+          <div class="tool3-panel">
             <div class="card">
-              <h3 style="margin-top:0;">2) Plot type 1 — next-frame value over time</h3>
+              <h3 style="margin-top:0;">2. Choose plot type</h3>
+              <label class="tool3-label">
+                <span>Plot type</span>
+                <select class="tool3-select" id="tool3PlotType">
+                  <option value="shift">Shifted-frame time plot — y(n) and y(n+skip) vs time</option>
+                  <option value="trajectory">Variable trajectory — 2D / 3D path + GIF</option>
+                </select>
+              </label>
+              <div class="tool3-note" id="tool3Summary">
+                After loading a sheet, choose the columns below. The main plot updates automatically.
+              </div>
+            </div>
+          </div>
+
+          <div class="tool3-panel" id="tool3ShiftPanel">
+            <div class="card">
+              <h3 style="margin-top:0;">3A. Shifted-frame settings</h3>
+              <label class="tool3-label">
+                <span>Time column</span>
+                <select class="tool3-select" id="tool3TimeShift"></select>
+              </label>
               <label class="tool3-label">
                 <span>Variable</span>
                 <select class="tool3-select" id="tool3ShiftVar"></select>
               </label>
-              <div class="tool3-actions">
-                <button class="btn primary" id="tool3RenderShift" type="button">Render plot 1</button>
-              </div>
-              <p class="tool3-hint">This plots <code>x(n+skip)</code> against the selected time column.</p>
+              <label class="tool3-label">
+                <span>Skip (frames)</span>
+                <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
+              </label>
+              <div class="tool3-note">This plot overlays <code>y(n)</code> and <code>y(n+skip)</code> against the same time axis.</div>
             </div>
           </div>
 
-          <div class="tool3-card">
+          <div class="tool3-panel tool3-hidden" id="tool3TrajectoryPanel">
             <div class="card">
-              <h3 style="margin-top:0;">3) Plot type 2 — trajectory / variable-space plot</h3>
+              <h3 style="margin-top:0;">3B. Trajectory settings</h3>
               <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Time/order column</span>
+                  <select class="tool3-select" id="tool3TimeTraj"></select>
+                </label>
                 <label class="tool3-label">
                   <span>Mode</span>
                   <select class="tool3-select" id="tool3Mode">
-                    <option value="2d">2D</option>
-                    <option value="3d">3D</option>
+                    <option value="2d">2D trajectory</option>
+                    <option value="3d">3D trajectory</option>
                   </select>
                 </label>
+              </div>
+
+              <div class="tool3-grid-3">
                 <label class="tool3-label">
                   <span>X variable</span>
                   <select class="tool3-select" id="tool3X"></select>
                 </label>
-              </div>
-              <div class="tool3-grid-2">
                 <label class="tool3-label">
                   <span>Y variable</span>
                   <select class="tool3-select" id="tool3Y"></select>
@@ -142,93 +154,68 @@
                   <select class="tool3-select" id="tool3Z"></select>
                 </label>
               </div>
-              <div class="tool3-actions">
-                <button class="btn primary" id="tool3RenderTrajectory" type="button">Render plot 2</button>
-              </div>
-              <p class="tool3-hint">Choose 2 variables for a 2D trajectory, or 3 variables for a 3D trajectory.</p>
-            </div>
-          </div>
 
-          <div class="tool3-card">
-            <div class="card">
-              <h3 style="margin-top:0;">4) GIF output</h3>
               <div class="tool3-grid-3">
                 <label class="tool3-label">
-                  <span>Frames</span>
-                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="180" step="1" value="48" />
+                  <span>GIF frames</span>
+                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="120" step="1" value="28" />
                 </label>
                 <label class="tool3-label">
-                  <span>FPS</span>
-                  <input class="tool3-number" id="tool3Fps" type="number" min="2" max="30" step="1" value="12" />
+                  <span>GIF fps</span>
+                  <input class="tool3-number" id="tool3Fps" type="number" min="1" max="20" step="1" value="8" />
                 </label>
                 <label class="tool3-label">
-                  <span>Point size</span>
-                  <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="28" step="1" value="12" />
+                  <span>Moving point size</span>
+                  <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
                 </label>
               </div>
+
               <div class="tool3-actions">
-                <button class="btn primary" id="tool3MakeGif" type="button">Generate moving-point GIF</button>
-                <a class="btn tool3-hidden" id="tool3GifDownload" download="trajectory.gif">Download GIF</a>
+                <button class="btn primary" id="tool3MakeGif" type="button">Generate trajectory GIF</button>
+                <a class="btn tool3-hidden" id="tool3GifDownload" download="trajectory.gif" href="#">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">Render plot 2 first, then generate the GIF.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for the trajectory plot.</div>
             </div>
           </div>
-        </aside>
+        </div>
 
-        <section class="tool3-right">
-          <div class="tool3-card">
+        <div class="tool3-right">
+          <div class="tool3-plotcard">
             <div class="card">
-              <div class="tool3-row" style="justify-content:space-between; align-items:flex-start;">
-                <div>
-                  <h3 style="margin-top:0;">Plot 1 — next-frame over time</h3>
-                  <p class="muted" style="margin:.35rem 0 0;">Time on x-axis, shifted variable on y-axis.</p>
-                </div>
-                <div class="tool3-chip" id="tool3ShiftMeta">Waiting for data</div>
-              </div>
-              <div class="tool3-mini-plot" id="tool3ShiftPlot"></div>
+              <h3 style="margin-top:0;">Visualization</h3>
+              <div class="tool3-plot" id="tool3Plot"></div>
+              <div class="tool3-meta" id="tool3Meta">Load a file to preview your plot here.</div>
             </div>
           </div>
 
-          <div class="tool3-card">
-            <div class="card">
-              <div class="tool3-row" style="justify-content:space-between; align-items:flex-start;">
-                <div>
-                  <h3 style="margin-top:0;">Plot 2 — 2D / 3D trajectory</h3>
-                  <p class="muted" style="margin:.35rem 0 0;">Choose which columns define the variable-space trajectory.</p>
-                </div>
-                <div class="tool3-chip" id="tool3TrajMeta">Waiting for data</div>
-              </div>
-              <div class="tool3-plot" id="tool3TrajectoryPlot"></div>
-            </div>
-          </div>
-
-          <div class="tool3-card">
+          <div class="tool3-panel tool3-hidden" id="tool3GifCard">
             <div class="card">
               <h3 style="margin-top:0;">GIF output</h3>
-              <p class="muted" style="margin:.35rem 0 1rem;">The generated GIF shows a moving point traveling along the plotted trajectory.</p>
-              <img class="tool3-preview" id="tool3GifPreview" alt="Generated trajectory GIF preview" />
-              <div class="tool3-note" style="margin-top:1rem;">
-                <strong>Tip:</strong> smaller frame counts generate faster. For very large datasets, start with 32–48 frames first.
+              <div class="tool3-gif-wrap">
+                <div>
+                  <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
+                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the selected trajectory order and shows a moving point along the path.</div>
+                </div>
+                <div>
+                  <p style="margin-top:0;"><strong>How it works</strong></p>
+                  <ul class="bullets">
+                    <li>Frame count controls smoothness and file size.</li>
+                    <li>FPS controls playback speed.</li>
+                    <li>2D or 3D trajectory mode is inherited from the current plot.</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
       </div>
+
     </div>
   </main>
 
-  <footer class="site-footer">
-    <div class="container">
-      <p>© <span id="year"></span> Suwen Shi. Built with warm heart for science.</p>
-    </div>
-  </footer>
-
-  <script>
-    (function(){ var y=document.getElementById('year'); if(y) y.textContent = new Date().getFullYear(); })();
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/build/gifshot.min.js"></script>
   <script src="assets/js/tool3.js"></script>
 </body>
 </html>

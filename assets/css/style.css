@@ -321,21 +321,3 @@ body.tool2-float-dragging{
   user-select: none;
   cursor: move;
 }
-
-
-/* Toolkit cards: keep all tools visible and evenly stacked */
-.toolkit-cards .card{
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.toolkit-cards .actions{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-
-/* Tool 3 page helpers */
-.tool3-chip strong{ font-weight:700; }
-.tool3-preview{ margin-top: 4px; }
