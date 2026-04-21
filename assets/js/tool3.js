@@ -88,7 +88,9 @@
   }
 
   function revokeGifUrl() {
-    if (state.gifUrl && state.gifUrl.startsWith("blob:")) URL.revokeObjectURL(state.gifUrl);
+    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(state.gifUrl);
+    }
     state.gifUrl = "";
   }
 
@@ -105,7 +107,7 @@
   function optionList(selectEl, values, preferred) {
     if (!selectEl) return;
     if (!values || !values.length) {
-      selectEl.innerHTML = `<option value="">No options</option>`;
+      selectEl.innerHTML = '<option value="">No options</option>';
       return;
     }
     const current = selectEl.value;
@@ -180,36 +182,23 @@
     optionList(elY, vars, vars[1] || vars[0] || "");
     optionList(elZ, vars, vars[2] || vars[0] || "");
 
-    setLoadStatus(state.rows.length
-      ? `Loaded ${state.rows.length} rows from “${state.sheetName}”.`
-      : "This sheet is empty or could not be read.");
+    setLoadStatus(
+      state.rows.length
+        ? `Loaded ${state.rows.length} rows from “${state.sheetName}”.`
+        : "This sheet is empty or could not be read."
+    );
   }
 
   async function loadWorkbookFromFile(file) {
     state.fileName = file.name || "uploaded file";
     const ext = (file.name.split(".").pop() || "").toLowerCase();
 
-    // CSV / TXT fallback path
     if (ext === "csv" || ext === "txt") {
       const text = await file.text();
-      const wb = XLSX.read(text, { type: "string" });
-      state.workbook = wb;
-      const sheets = wb.SheetNames || ["Sheet1"];
-      elSheet.innerHTML = sheets.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-      elSheet.value = sheets[0];
-      parseSheet(sheets[0]);
-      refreshControls();
-      renderCurrentPlot();
-      return;
-    }
-
-    // Normal Excel path + binary fallback
-    try {
+      state.workbook = XLSX.read(text, { type: "string" });
+    } else {
       const buffer = await file.arrayBuffer();
       state.workbook = XLSX.read(buffer, { type: "array" });
-    } catch (err) {
-      const b64 = await file.text();
-      state.workbook = XLSX.read(b64, { type: "binary" });
     }
 
     const sheets = (state.workbook && state.workbook.SheetNames) ? state.workbook.SheetNames : [];
@@ -235,6 +224,7 @@
     const tCol = elTimeShift.value;
     const yCol = elShiftVar.value;
     const skip = clampInt(elSkip.value, 1, 100000, 1);
+
     const t = [], yn = [], ynp = [];
     const n = Math.max(0, state.rows.length - skip);
     for (let i = 0; i < n; i++) {
@@ -254,10 +244,15 @@
     const xCol = elX.value, yCol = elY.value, zCol = elZ.value, tCol = elTimeTraj.value;
     const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
     for (const row of state.rows) {
-      const xv = num(row[xCol]), yv = num(row[yCol]), zv = num(row[zCol]);
+      const xv = num(row[xCol]);
+      const yv = num(row[yCol]);
+      const zv = num(row[zCol]);
       if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
       if (mode === "3d" && !Number.isFinite(zv)) continue;
-      out.x.push(xv); out.y.push(yv); if (mode === "3d") out.z.push(zv); out.t.push(row[tCol]);
+      out.x.push(xv);
+      out.y.push(yv);
+      if (mode === "3d") out.z.push(zv);
+      out.t.push(row[tCol]);
     }
     return out;
   }
@@ -320,7 +315,8 @@
         xaxis: { title: d.xCol, automargin: true },
         yaxis: { title: d.yCol, automargin: true },
         legend: { orientation: "h", y: 1.12 },
-        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
       };
     }
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
@@ -332,9 +328,11 @@
     if (!state.rows.length) {
       Plotly.react(elPlot, [], {
         annotations: [{ text: "Upload a file to begin.", showarrow: false, xref: "paper", yref: "paper", x: 0.5, y: 0.5, font: { size: 18, color: "#6b7280" } }],
-        xaxis: { visible: false }, yaxis: { visible: false },
+        xaxis: { visible: false },
+        yaxis: { visible: false },
         margin: { l: 0, r: 0, t: 10, b: 0 },
-        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
       }, { responsive: true, displaylogo: false });
       setMeta("Load a file to preview your plot here.");
       return;
@@ -352,8 +350,10 @@
 
   function getGifModeConfig() {
     const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
-    if (mode === "high") return { mode, width: 640, height: 420, maxFrames: 60, defaultFrames: 24, defaultFps: 8, quality: 12, workers: Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4)) };
-    return { mode, width: 480, height: 300, maxFrames: 48, defaultFrames: 16, defaultFps: 6, quality: 25, workers: Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4)) };
+    if (mode === "high") {
+      return { mode, width: 640, height: 420, maxFrames: 60, defaultFrames: 24, defaultFps: 8 };
+    }
+    return { mode, width: 480, height: 300, maxFrames: 48, defaultFrames: 16, defaultFps: 6 };
   }
 
   function syncGifInputsToMode() {
@@ -367,7 +367,9 @@
     if (nPoints <= 1) return [0];
     const steps = Math.max(2, nFrames);
     const out = [];
-    for (let i = 0; i < steps; i++) out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
+    for (let i = 0; i < steps; i++) {
+      out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
+    }
     return Array.from(new Set(out));
   }
 
@@ -426,37 +428,87 @@
     const [ymin, ymax] = getMinMax(allY);
     const n = Math.max(1, d.yn.length - 1);
     const xMap = (i) => pad.l + (iw * i / n);
-    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin || 1)) * ih;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+
     drawBackground(ctx, w, h, `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`);
-    ctx.strokeStyle = "#d1d5db"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ih); ctx.lineTo(pad.l + iw, pad.t + ih); ctx.stroke();
-    ctx.fillStyle = "#6b7280"; ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px Inter, Arial, sans-serif";
     for (let k = 0; k <= 4; k++) {
-      const frac = k / 4, yy = pad.t + ih - frac * ih, val = ymin + frac * (ymax - ymin);
-      ctx.strokeStyle = "#f1f5f9"; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + iw, yy); ctx.stroke();
+      const frac = k / 4;
+      const yy = pad.t + ih - frac * ih;
+      const val = ymin + frac * (ymax - ymin);
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.beginPath();
+      ctx.moveTo(pad.l, yy);
+      ctx.lineTo(pad.l + iw, yy);
+      ctx.stroke();
       ctx.fillText(val.toFixed(3), 8, yy + 4);
     }
+
     const tickIdx = [0, Math.floor(d.t.length / 2), Math.max(0, d.t.length - 1)];
-    tickIdx.forEach((ii) => { if (!d.t.length) return; const xx = xMap(ii); ctx.fillStyle = "#6b7280"; ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12); });
+    tickIdx.forEach((ii) => {
+      if (!d.t.length) return;
+      const xx = xMap(ii);
+      ctx.fillStyle = "#6b7280";
+      ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12);
+    });
+
     function drawPath(arr, color, upTo, dash) {
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; if (dash) ctx.setLineDash([8, 5]);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      if (dash) ctx.setLineDash([8, 5]);
       ctx.beginPath();
       for (let i = 0; i <= upTo; i++) {
-        const xx = xMap(i), yy = yMap(arr[i]);
-        if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        const xx = xMap(i);
+        const yy = yMap(arr[i]);
+        if (i === 0) ctx.moveTo(xx, yy);
+        else ctx.lineTo(xx, yy);
       }
-      ctx.stroke(); ctx.restore();
+      ctx.stroke();
+      ctx.restore();
     }
-    ctx.globalAlpha = 0.18; drawPath(d.yn, "#2563eb", d.yn.length - 1, false); drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true); ctx.globalAlpha = 1;
+
+    ctx.globalAlpha = 0.18;
+    drawPath(d.yn, "#2563eb", d.yn.length - 1, false);
+    drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true);
+    ctx.globalAlpha = 1;
+
     const activeIdx = Math.max(0, Math.min(idx, d.yn.length - 1));
-    drawPath(d.yn, "#2563eb", activeIdx, false); drawPath(d.ynp, "#dc2626", activeIdx, true);
-    const ps = clampInt(elPointSize.value, 4, 24, 11), xActive = xMap(activeIdx);
-    ctx.fillStyle = "#2563eb"; ctx.beginPath(); ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#374151"; ctx.font = "600 12px Inter, Arial, sans-serif";
+    drawPath(d.yn, "#2563eb", activeIdx, false);
+    drawPath(d.ynp, "#dc2626", activeIdx, true);
+
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    const xActive = xMap(activeIdx);
+
+    ctx.fillStyle = "#2563eb";
+    ctx.beginPath();
+    ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = "600 12px Inter, Arial, sans-serif";
     ctx.fillText(`frame ${activeIdx + 1}/${d.yn.length}`, w - 130, 26);
     ctx.fillText(String(d.t[activeIdx]), w - 130, 44);
-    drawSimpleLegend(ctx, [{ color: "#2563eb", label: `${d.yCol} (n)` }, { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }], w - 190, 72);
+
+    drawSimpleLegend(ctx, [
+      { color: "#2563eb", label: `${d.yCol} (n)` },
+      { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }
+    ], w - 190, 72);
+
     return canvas;
   }
 
@@ -466,42 +518,96 @@
     const pad = { l: 60, r: 24, t: 50, b: 48 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
     const [xmin, xmax] = getMinMax(d.x), [ymin, ymax] = getMinMax(d.y);
-    const xMap = (v) => pad.l + ((v - xmin) / (xmax - xmin || 1)) * iw;
-    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin || 1)) * ih;
+    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+
     drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
-    ctx.strokeStyle = "#d1d5db"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ih); ctx.lineTo(pad.l + iw, pad.t + ih); ctx.stroke();
-    ctx.globalAlpha = 0.18; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2.5; ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) { const xx = xMap(d.x[i]), yy = yMap(d.y[i]); if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); } ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 3; ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) { const xx = xMap(d.x[i]), yy = yMap(d.y[i]); if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); } ctx.stroke();
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+
     const ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#374151"; ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
     ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
-    ctx.save(); ctx.translate(16, h / 2 + 10); ctx.rotate(-Math.PI / 2); ctx.fillText(`${d.yCol}`, 0, 0); ctx.restore();
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.yCol}`, 0, 0);
+    ctx.restore();
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+
     return canvas;
   }
 
   function project3DFactory(xs, ys, zs, width, height) {
-    const [xmin, xmax] = getMinMax(xs), [ymin, ymax] = getMinMax(ys), [zmin, zmax] = getMinMax(zs);
-    const nx = (v, lo, hi) => ((v - lo) / (hi - lo || 1)) * 2 - 1;
+    const [xmin, xmax] = getMinMax(xs);
+    const [ymin, ymax] = getMinMax(ys);
+    const [zmin, zmax] = getMinMax(zs);
+    const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
     const az = Math.PI / 4.3, el = Math.PI / 8.8;
+
     const pts = xs.map((x, i) => {
-      const X = nx(x, xmin, xmax), Y = nx(ys[i], ymin, ymax), Z = nx(zs[i], zmin, zmax);
+      const X = norm(x, xmin, xmax);
+      const Y = norm(ys[i], ymin, ymax);
+      const Z = norm(zs[i], zmin, zmax);
       const xr = Math.cos(az) * X - Math.sin(az) * Y;
       const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
       const yr = Math.cos(el) * yr0 - Math.sin(el) * Z;
       return { x: xr, y: yr };
     });
+
     let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
-    pts.forEach((p) => { minPX = Math.min(minPX, p.x); maxPX = Math.max(maxPX, p.x); minPY = Math.min(minPY, p.y); maxPY = Math.max(maxPY, p.y); });
-    const pad = 0.12, sx = (maxPX - minPX) || 1, sy = (maxPY - minPY) || 1;
-    minPX -= sx * pad; maxPX += sx * pad; minPY -= sy * pad; maxPY += sy * pad;
+    pts.forEach((p) => {
+      minPX = Math.min(minPX, p.x);
+      maxPX = Math.max(maxPX, p.x);
+      minPY = Math.min(minPY, p.y);
+      maxPY = Math.max(maxPY, p.y);
+    });
+
+    const pad = 0.12;
+    const sx = (maxPX - minPX) || 1, sy = (maxPY - minPY) || 1;
+    minPX -= sx * pad; maxPX += sx * pad;
+    minPY -= sy * pad; maxPY += sy * pad;
+
     return function (i) {
       const p = pts[i];
-      return { x: ((p.x - minPX) / (maxPX - minPX || 1)) * width, y: height - ((p.y - minPY) / (maxPY - minPY || 1)) * height };
+      return {
+        x: ((p.x - minPX) / ((maxPX - minPX) || 1)) * width,
+        y: height - ((p.y - minPY) / ((maxPY - minPY) || 1)) * height
+      };
     };
   }
 
@@ -510,84 +616,272 @@
     const w = canvas.width, h = canvas.height;
     const pad = { l: 24, r: 24, t: 50, b: 24 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+
     drawBackground(ctx, w, h, `${d.xCol}–${d.yCol}–${d.zCol} trajectory (3D projection)`);
     const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    ctx.save(); ctx.translate(pad.l, pad.t);
-    ctx.globalAlpha = 0.15; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2.5; ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) { const p = proj(i); if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); } ctx.stroke(); ctx.globalAlpha = 1;
-    ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 3; ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) { const p = proj(i); if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); } ctx.stroke();
-    const point = proj(activeIdx), ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(pad.l, pad.t);
+
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    const point = proj(activeIdx);
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
-    ctx.fillStyle = "#374151"; ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`3D projected view`, 18, h - 14);
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText("3D projected view", 18, h - 14);
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
     return canvas;
   }
 
-  async function generateGif() {
-    if (!window.GIF) { setGifStatus("GIF encoder did not load. Refresh the page and try again."); return; }
-    if (!state.rows.length) { setGifStatus("Upload data first before generating a GIF."); return; }
+  function buildGIFPalette332() {
+    const pal = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const r = (i >> 5) & 7;
+      const g = (i >> 2) & 7;
+      const b = i & 3;
+      pal[i * 3 + 0] = Math.round((r / 7) * 255);
+      pal[i * 3 + 1] = Math.round((g / 7) * 255);
+      pal[i * 3 + 2] = Math.round((b / 3) * 255);
+    }
+    return pal;
+  }
 
-    revokeGifUrl(); setGifDownloadEnabled(false); setGifPreview("Generating GIF…"); setGifStatus("Preparing GIF…");
+  function rgbaToIndexed332(imageData) {
+    const src = imageData.data;
+    const out = new Uint8Array(imageData.width * imageData.height);
+    let j = 0;
+    for (let i = 0; i < src.length; i += 4) {
+      let r = src[i], g = src[i + 1], b = src[i + 2], a = src[i + 3];
+      if (a !== 255) {
+        r = Math.round((r * a + 255 * (255 - a)) / 255);
+        g = Math.round((g * a + 255 * (255 - a)) / 255);
+        b = Math.round((b * a + 255 * (255 - a)) / 255);
+      }
+      out[j++] = ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
+    }
+    return out;
+  }
+
+  function lzwEncodeGIF(indices, minCodeSize) {
+    const CLEAR = 1 << minCodeSize;
+    const EOI = CLEAR + 1;
+    let nextCode = EOI + 1;
+    let codeSize = minCodeSize + 1;
+    let dict = new Map();
+
+    function resetDict() {
+      dict = new Map();
+      nextCode = EOI + 1;
+      codeSize = minCodeSize + 1;
+    }
+
+    const bytes = [];
+    let cur = 0, bits = 0;
+
+    function writeCode(code) {
+      cur |= (code << bits);
+      bits += codeSize;
+      while (bits >= 8) {
+        bytes.push(cur & 0xFF);
+        cur >>= 8;
+        bits -= 8;
+      }
+    }
+
+    resetDict();
+    writeCode(CLEAR);
+
+    let prefix = String(indices[0]);
+    for (let i = 1; i < indices.length; i++) {
+      const k = indices[i];
+      const key = prefix + "," + k;
+      if (dict.has(key)) {
+        prefix = key;
+      } else {
+        const outCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
+        writeCode(outCode);
+
+        if (nextCode < 4096) {
+          dict.set(key, nextCode++);
+          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
+        } else {
+          writeCode(CLEAR);
+          resetDict();
+        }
+        prefix = String(k);
+      }
+    }
+
+    const finalCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
+    writeCode(finalCode);
+    writeCode(EOI);
+
+    if (bits > 0) bytes.push(cur & 0xFF);
+    return Uint8Array.from(bytes);
+  }
+
+  function le16(n) {
+    return Uint8Array.from([n & 0xFF, (n >> 8) & 0xFF]);
+  }
+
+  function splitSubBlocks(dataBytes) {
+    const parts = [];
+    for (let i = 0; i < dataBytes.length; i += 255) {
+      const chunk = dataBytes.slice(i, i + 255);
+      parts.push(Uint8Array.from([chunk.length]));
+      parts.push(chunk);
+    }
+    parts.push(Uint8Array.from([0]));
+    return parts;
+  }
+
+  function encodeAnimatedGif(frameCanvases, width, height, delayCs, onProgress) {
+    const palette = buildGIFPalette332();
+    const parts = [];
+
+    parts.push(Uint8Array.from([71, 73, 70, 56, 57, 97])); // GIF89a
+    parts.push(le16(width));
+    parts.push(le16(height));
+    parts.push(Uint8Array.from([0xF7, 0x00, 0x00]));
+    parts.push(palette);
+
+    // Netscape loop extension (infinite)
+    parts.push(Uint8Array.from([
+      0x21, 0xFF, 0x0B,
+      0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
+      0x03, 0x01, 0x00, 0x00, 0x00
+    ]));
+
+    for (let i = 0; i < frameCanvases.length; i++) {
+      if (onProgress) onProgress(i, frameCanvases.length);
+      const ctx = frameCanvases[i].getContext("2d");
+      const img = ctx.getImageData(0, 0, width, height);
+      const indexed = rgbaToIndexed332(img);
+      const lzw = lzwEncodeGIF(indexed, 8);
+
+      // Graphics Control Extension
+      parts.push(Uint8Array.from([0x21, 0xF9, 0x04, 0x00]));
+      parts.push(le16(delayCs));
+      parts.push(Uint8Array.from([0x00, 0x00]));
+
+      // Image Descriptor
+      parts.push(Uint8Array.from([0x2C]));
+      parts.push(le16(0));
+      parts.push(le16(0));
+      parts.push(le16(width));
+      parts.push(le16(height));
+      parts.push(Uint8Array.from([0x00]));
+
+      // LZW image data
+      parts.push(Uint8Array.from([0x08]));
+      const subs = splitSubBlocks(lzw);
+      for (let j = 0; j < subs.length; j++) parts.push(subs[j]);
+    }
+
+    parts.push(Uint8Array.from([0x3B])); // trailer
+
+    let totalLen = 0;
+    for (let i = 0; i < parts.length; i++) totalLen += parts[i].length;
+    const out = new Uint8Array(totalLen);
+    let off = 0;
+    for (let i = 0; i < parts.length; i++) {
+      out.set(parts[i], off);
+      off += parts[i].length;
+    }
+    return new Blob([out], { type: "image/gif" });
+  }
+
+  async function generateGif() {
+    if (!state.rows.length) {
+      setGifStatus("Upload data first before generating a GIF.");
+      return;
+    }
+
+    revokeGifUrl();
+    setGifDownloadEnabled(false);
+    setGifPreview("Generating GIF…");
+    setGifStatus("Preparing frames…");
+
     const cfg = getGifModeConfig();
     const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
     const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
-    let frameIndices = [], drawFrame = null, outName = "plot_animation.gif";
+
+    let frameIndices = [];
+    let drawFrame = null;
+    let outName = "plot_animation.gif";
 
     if (elPlotType.value === "shift") {
       const d = getShiftData();
-      if (d.yn.length < 2) { setGifStatus("Need at least two valid shifted-time points for GIF export."); return; }
+      if (d.yn.length < 2) {
+        setGifStatus("Need at least two valid shifted-time points for GIF export.");
+        return;
+      }
       frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
       drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
       outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted_time.gif`;
     } else {
       const d = getTrajectoryData();
-      if (d.x.length < 2) { setGifStatus("Need at least two valid trajectory points for GIF export."); return; }
+      if (d.x.length < 2) {
+        setGifStatus("Need at least two valid trajectory points for GIF export.");
+        return;
+      }
       frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
-      drawFrame = d.mode === "3d" ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg) : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
+      drawFrame = d.mode === "3d"
+        ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg)
+        : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
       outName = d.mode === "3d" ? "trajectory3d.gif" : "trajectory2d.gif";
     }
 
-    const delay = Math.max(40, Math.round(1000 / fps));
-    const gif = new window.GIF({
-      workers: cfg.workers,
-      quality: cfg.quality,
-      width: cfg.width,
-      height: cfg.height,
-      workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
-    });
-
+    const frameCanvases = [];
     for (let i = 0; i < frameIndices.length; i++) {
       setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
-      const canvas = drawFrame(frameIndices[i]);
-      gif.addFrame(canvas, { delay, copy: true });
+      frameCanvases.push(drawFrame(frameIndices[i]));
       if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    setGifStatus(`Encoding GIF with ${cfg.workers} workers…`);
+    const delayCs = Math.max(2, Math.round(100 / fps));
+    setGifStatus("Writing GIF file…");
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    gif.on("progress", (p) => {
-      const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
-      setGifStatus(`Encoding GIF with ${cfg.workers} workers… ${pct}%`);
+    const blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
+      if (i % 2 === 0 || i === total - 1) {
+        setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
+      }
     });
 
-    gif.on("finished", (blob) => {
-      revokeGifUrl();
-      state.gifUrl = URL.createObjectURL(blob);
-      setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
-      setGifDownloadEnabled(true, state.gifUrl, outName);
-      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
-    });
-
-    gif.on("abort", () => {
-      setGifStatus("GIF encoding was aborted.");
-      setGifDownloadEnabled(false);
-    });
-
-    gif.render();
+    revokeGifUrl();
+    state.gifUrl = URL.createObjectURL(blob);
+    setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
+    setGifDownloadEnabled(true, state.gifUrl, outName);
+    setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
   }
 
   function handleSheetChange() {
@@ -600,8 +894,9 @@
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     setLoadStatus(`Reading ${file.name}…`);
-    try { await loadWorkbookFromFile(file); }
-    catch (err) {
+    try {
+      await loadWorkbookFromFile(file);
+    } catch (err) {
       console.error(err);
       setLoadStatus("Could not read that file. Try the example Excel first, then match your file to that format.");
     }
@@ -612,7 +907,9 @@
   [elPlotType, elTimeShift, elShiftVar, elSkip, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
-    el.addEventListener("input", () => { if (el === elSkip || el === elPointSize) renderCurrentPlot(); });
+    el.addEventListener("input", () => {
+      if (el === elSkip || el === elPointSize) renderCurrentPlot();
+    });
   });
 
   if (elFrames) elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
@@ -629,5 +926,6 @@
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
+  setGifStatus("GIF export is available for both plot types. This version uses a built-in lightweight encoder.");
   renderCurrentPlot();
 })();
