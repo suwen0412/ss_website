@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tool 3 — Time-Series Plotter & Trajectory GIF</title>
-  <meta name="description" content="Upload Excel/CSV, choose columns, make shifted-frame plots or 2D/3D trajectories, and export a moving-point GIF." />
+  <title>Tool 3 — Time-Series Plotter & GIF Export</title>
+  <meta name="description" content="Upload Excel/CSV, choose a plot type, make shifted-frame or trajectory plots, and export an animated GIF." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
@@ -14,9 +14,9 @@
     .toolpage-wrap{ padding: 28px 0 48px; }
     .toolpage-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
     .toolpage-head h1{ margin:0; font-size: clamp(24px, 3vw, 36px); }
-    .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 780px; }
+    .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 840px; }
     .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top:1rem; }
-    .tool3-left{ width:370px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
+    .tool3-left{ width:390px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
     .tool3-right{ flex:1 1 auto; min-width:0; }
     .tool3-panel + .tool3-panel{ margin-top:14px; }
     .tool3-panel .card{ padding:18px; }
@@ -57,11 +57,11 @@
       <div class="toolpage-head">
         <div>
           <div class="tool3-badge">Tool 3 · Online</div>
-          <h1>Time-Series Plotter &amp; Trajectory GIF</h1>
+          <h1>Time-Series Plotter &amp; GIF Export</h1>
           <p>
             Upload an Excel or CSV file, choose a sheet and your columns, then make <strong>one</strong> of two plot types:
             <strong>(A)</strong> a shifted-frame time plot of <code>y(n)</code> and <code>y(n+skip)</code> versus time, or
-            <strong>(B)</strong> a 2D/3D variable trajectory with an exportable moving-point GIF.
+            <strong>(B)</strong> a 2D/3D variable trajectory plot. You can export an animated GIF from <strong>either</strong> plot type.
           </p>
         </div>
         <div class="tool3-actions">
@@ -95,7 +95,7 @@
                 <span>Plot type</span>
                 <select class="tool3-select" id="tool3PlotType">
                   <option value="shift">Shifted-frame time plot — y(n) and y(n+skip) vs time</option>
-                  <option value="trajectory">Variable trajectory — 2D / 3D path + GIF</option>
+                  <option value="trajectory">Variable trajectory — 2D / 3D path</option>
                 </select>
               </label>
               <div class="tool3-note" id="tool3Summary">
@@ -119,7 +119,7 @@
                 <span>Skip (frames)</span>
                 <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
               </label>
-              <div class="tool3-note">This plot overlays <code>y(n)</code> and <code>y(n+skip)</code> against the same time axis.</div>
+              <div class="tool3-note">This plot overlays <code>y(n)</code> and <code>y(n+skip)</code> against the same time axis, and the GIF animates progression through time.</div>
             </div>
           </div>
 
@@ -155,6 +155,13 @@
                 </label>
               </div>
 
+              <div class="tool3-note">Trajectory GIF export uses a fast canvas drawing loop rather than re-rendering Plotly every frame.</div>
+            </div>
+          </div>
+
+          <div class="tool3-panel">
+            <div class="card">
+              <h3 style="margin-top:0;">4. GIF export</h3>
               <div class="tool3-grid-2">
                 <label class="tool3-label">
                   <span>GIF quality mode</span>
@@ -181,10 +188,10 @@
               </div>
 
               <div class="tool3-actions">
-                <button class="btn primary" id="tool3MakeGif" type="button">Generate trajectory GIF</button>
-                <a class="btn" id="tool3GifDownload" download="trajectory.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
+                <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
+                <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for the trajectory plot. Use “Fast” for quick export or “High quality” for smoother output.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Fast mode uses a quicker canvas loop; High quality uses a larger output canvas.</div>
             </div>
           </div>
         </div>
@@ -198,20 +205,20 @@
             </div>
           </div>
 
-          <div class="tool3-panel tool3-hidden" id="tool3GifCard">
+          <div class="tool3-panel" id="tool3GifCard">
             <div class="card">
               <h3 style="margin-top:0;">GIF output</h3>
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the selected trajectory order and shows a moving point along the path.</div>
+                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points.</div>
                 </div>
                 <div>
-                  <p style="margin-top:0;"><strong>How it works</strong></p>
+                  <p style="margin-top:0;"><strong>Why this is faster</strong></p>
                   <ul class="bullets">
-                    <li>Fast mode uses smaller output and fewer default frames.</li>
-                    <li>High quality uses a larger canvas and smoother defaults.</li>
-                    <li>3D plots use a padded scene so the full trajectory stays in view better while rotating.</li>
+                    <li>The GIF loop now draws directly on a canvas.</li>
+                    <li>It no longer re-renders Plotly for every frame.</li>
+                    <li>Shifted-frame plots and trajectory plots both support GIF export.</li>
                   </ul>
                 </div>
               </div>

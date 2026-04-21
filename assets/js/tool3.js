@@ -17,22 +17,22 @@
   const elY = $("tool3Y");
   const elZ = $("tool3Z");
   const elZWrap = $("tool3ZWrap");
+
+  const elGifQuality = $("tool3GifQuality");
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
-  const elGifQuality = $("tool3GifQuality");
   const elPointSize = $("tool3PointSize");
   const elMakeGif = $("tool3MakeGif");
   const elGifDownload = $("tool3GifDownload");
   const elGifStatus = $("tool3GifStatus");
   const elGifPreview = $("tool3GifPreview");
-  const elGifCard = $("tool3GifCard");
 
   const elLoadStatus = $("tool3LoadStatus");
   const elSummary = $("tool3Summary");
   const elPlot = $("tool3Plot");
   const elMeta = $("tool3Meta");
 
-  if (!elFile || !elSheet || !elPlotType || !elPlot) return;
+  if (!elFile || !elSheet || !elPlot || !window.XLSX || !window.Plotly) return;
 
   const state = {
     workbook: null,
@@ -41,8 +41,7 @@
     headers: [],
     rows: [],
     numericHeaders: [],
-    gifUrl: "",
-    currentTrajectory: null
+    gifUrl: ""
   };
 
   function safeText(v) {
@@ -83,6 +82,33 @@
     if (elMeta) elMeta.textContent = msg;
   }
 
+  function setGifPreview(msg) {
+    if (elGifPreview) elGifPreview.innerHTML = msg;
+  }
+
+  function setGifDownloadEnabled(enabled, href, filename) {
+    if (!elGifDownload) return;
+    if (enabled) {
+      elGifDownload.href = href || "#";
+      if (filename) elGifDownload.download = filename;
+      elGifDownload.removeAttribute("aria-disabled");
+      elGifDownload.style.pointerEvents = "";
+      elGifDownload.style.opacity = "";
+    } else {
+      elGifDownload.href = "#";
+      elGifDownload.setAttribute("aria-disabled", "true");
+      elGifDownload.style.pointerEvents = "none";
+      elGifDownload.style.opacity = ".55";
+    }
+  }
+
+  function revokeGifUrl() {
+    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(state.gifUrl);
+    }
+    state.gifUrl = "";
+  }
+
   function uniqueHeaders(row0) {
     const used = new Map();
     return row0.map((raw, i) => {
@@ -96,13 +122,16 @@
   function optionList(selectEl, values, preferred) {
     if (!selectEl) return;
     if (!values || !values.length) {
-      selectEl.innerHTML = `<option value="">No columns available</option>`;
+      selectEl.innerHTML = `<option value="">No options</option>`;
       return;
     }
+    const current = selectEl.value;
     selectEl.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
     if (preferred && values.includes(preferred)) {
       selectEl.value = preferred;
-    } else if (!values.includes(selectEl.value)) {
+    } else if (current && values.includes(current)) {
+      selectEl.value = current;
+    } else {
       selectEl.value = values[0];
     }
   }
@@ -141,7 +170,7 @@
         valid += 1;
         if (Number.isFinite(num(raw))) numeric += 1;
       }
-      return valid > 0 && numeric / valid >= 0.7;
+      return valid > 0 && numeric / valid >= 0.6;
     });
 
     state.sheetName = name;
@@ -163,7 +192,6 @@
 
   function refreshControls() {
     const timeGuess = guessTimeColumn();
-
     optionList(elTimeShift, state.headers, timeGuess);
     optionList(elTimeTraj, state.headers, timeGuess);
 
@@ -183,37 +211,29 @@
     );
   }
 
-  function getSeries(header) {
-    return state.rows.map((row, idx) => ({
-      raw: row[header],
-      num: num(row[header]),
-      index: idx
-    }));
-  }
-
   function getShiftData() {
     const tCol = elTimeShift.value;
     const yCol = elShiftVar.value;
     const skip = clampInt(elSkip.value, 1, 100000, 1);
 
-    const tSeries = getSeries(tCol);
-    const ySeries = getSeries(yCol);
-    const n = Math.max(0, ySeries.length - skip);
-
     const t = [];
+    const xIndex = [];
     const yn = [];
     const ynp = [];
 
+    const n = Math.max(0, state.rows.length - skip);
     for (let i = 0; i < n; i++) {
-      const y0 = ySeries[i].num;
-      const y1 = ySeries[i + skip].num;
+      const y0 = num(state.rows[i][yCol]);
+      const y1 = num(state.rows[i + skip][yCol]);
       if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
-      t.push(tSeries[i].raw === "" ? i : tSeries[i].raw);
+      const tRaw = state.rows[i][tCol];
+      t.push(safeText(tRaw) === "" ? i : tRaw);
+      xIndex.push(i);
       yn.push(y0);
       ynp.push(y1);
     }
 
-    return { tCol, yCol, skip, t, yn, ynp };
+    return { tCol, yCol, skip, t, xIndex, yn, ynp };
   }
 
   function getTrajectoryData() {
@@ -239,40 +259,6 @@
     return out;
   }
 
-  function getGifModeConfig() {
-    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
-    if (mode === "high") {
-      return {
-        mode,
-        width: 760,
-        height: 500,
-        maxFrames: 80,
-        defaultFrames: 30,
-        defaultFps: 8,
-        quality: 7,
-        workers: 2
-      };
-    }
-    return {
-      mode,
-      width: 560,
-      height: 360,
-      maxFrames: 60,
-      defaultFrames: 18,
-      defaultFps: 6,
-      quality: 10,
-      workers: 2
-    };
-  }
-
-  function syncGifInputsToMode() {
-    if (!elFrames || !elFps) return;
-    const cfg = getGifModeConfig();
-    elFrames.max = String(cfg.maxFrames);
-    if (!elFrames.dataset.userEdited) elFrames.value = String(cfg.defaultFrames);
-    if (!elFps.dataset.userEdited) elFps.value = String(cfg.defaultFps);
-  }
-
   function build3DScene(xTitle, yTitle, zTitle) {
     return {
       xaxis: { title: xTitle, automargin: true },
@@ -280,32 +266,15 @@
       zaxis: { title: zTitle, automargin: true },
       aspectmode: "data",
       dragmode: "turntable",
-      camera: {
-        eye: { x: 1.55, y: 1.55, z: 1.2 },
-        center: { x: 0, y: 0, z: 0 }
-      }
+      camera: { eye: { x: 1.55, y: 1.55, z: 1.15 } }
     };
   }
 
   function renderShiftPlot() {
     const d = getShiftData();
     const traces = [
-      {
-        x: d.t,
-        y: d.yn,
-        type: "scatter",
-        mode: "lines",
-        name: `${d.yCol} (n)`,
-        line: { width: 3 }
-      },
-      {
-        x: d.t,
-        y: d.ynp,
-        type: "scatter",
-        mode: "lines",
-        name: `${d.yCol} (n+${d.skip})`,
-        line: { width: 3, dash: "dash" }
-      }
+      { x: d.t, y: d.yn, type: "scatter", mode: "lines", name: `${d.yCol} (n)`, line: { width: 3 } },
+      { x: d.t, y: d.ynp, type: "scatter", mode: "lines", name: `${d.yCol} (n+${d.skip})`, line: { width: 3, dash: "dash" } }
     ];
 
     const layout = {
@@ -320,40 +289,19 @@
 
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
     setMeta(`Showing ${d.yn.length} aligned points. Time column: ${d.tCol}. Skip = ${d.skip}.`);
-    if (elSummary) {
-      elSummary.textContent = "Plot type A: shifted-frame time plot. This overlays y(n) and y(n+skip) against the same time axis.";
-    }
-    state.currentTrajectory = null;
-    hideGifOutput();
+    if (elSummary) elSummary.textContent = "Plot type A: shifted-frame time plot. GIF export animates progression through y(n) and y(n+skip).";
   }
 
   function renderTrajectoryPlot() {
     const d = getTrajectoryData();
     const pointSize = clampInt(elPointSize.value, 4, 24, 11);
-
     let traces, layout;
+
     if (d.mode === "3d") {
       traces = [
-        {
-          x: d.x,
-          y: d.y,
-          z: d.z,
-          type: "scatter3d",
-          mode: "lines",
-          name: "Trajectory",
-          line: { width: 5 }
-        },
-        {
-          x: d.x.length ? [d.x[d.x.length - 1]] : [],
-          y: d.y.length ? [d.y[d.y.length - 1]] : [],
-          z: d.z.length ? [d.z[d.z.length - 1]] : [],
-          type: "scatter3d",
-          mode: "markers",
-          name: "Current point",
-          marker: { size: pointSize }
-        }
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Trajectory", line: { width: 5 } },
+        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
-
       layout = {
         title: `${d.xCol}–${d.yCol}–${d.zCol} trajectory`,
         margin: { l: 10, r: 10, t: 56, b: 10 },
@@ -363,24 +311,9 @@
       };
     } else {
       traces = [
-        {
-          x: d.x,
-          y: d.y,
-          type: "scatter",
-          mode: "lines",
-          name: "Trajectory",
-          line: { width: 3 }
-        },
-        {
-          x: d.x.length ? [d.x[d.x.length - 1]] : [],
-          y: d.y.length ? [d.y[d.y.length - 1]] : [],
-          type: "scatter",
-          mode: "markers",
-          name: "Current point",
-          marker: { size: pointSize }
-        }
+        { x: d.x, y: d.y, type: "scatter", mode: "lines", name: "Trajectory", line: { width: 3 } },
+        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], type: "scatter", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
-
       layout = {
         title: `${d.xCol}–${d.yCol} trajectory`,
         margin: { l: 62, r: 24, t: 56, b: 58 },
@@ -394,45 +327,25 @@
 
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
     setMeta(`Showing ${d.x.length} valid trajectory points ordered by ${d.tCol}.`);
-    if (elSummary) {
-      elSummary.textContent = "Plot type B: variable trajectory. Choose 2D or 3D, then optionally export a moving-point GIF.";
-    }
-    state.currentTrajectory = d;
-    showGifCard();
+    if (elSummary) elSummary.textContent = "Plot type B: variable trajectory. GIF export uses a faster canvas loop rather than Plotly re-rendering.";
   }
 
   function renderCurrentPlot() {
     if (!state.rows.length) {
-      Plotly.react(
-        elPlot,
-        [],
-        {
-          annotations: [{
-            text: "Upload a file to begin.",
-            showarrow: false,
-            xref: "paper",
-            yref: "paper",
-            x: 0.5,
-            y: 0.5,
-            font: { size: 18, color: "#6b7280" }
-          }],
-          xaxis: { visible: false },
-          yaxis: { visible: false },
-          margin: { l: 0, r: 0, t: 10, b: 0 },
-          paper_bgcolor: "#fff",
-          plot_bgcolor: "#fff"
-        },
-        { responsive: true, displaylogo: false }
-      );
+      Plotly.react(elPlot, [], {
+        annotations: [{ text: "Upload a file to begin.", showarrow: false, xref: "paper", yref: "paper", x: 0.5, y: 0.5, font: { size: 18, color: "#6b7280" } }],
+        xaxis: { visible: false },
+        yaxis: { visible: false },
+        margin: { l: 0, r: 0, t: 10, b: 0 },
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
+      }, { responsive: true, displaylogo: false });
       setMeta("Load a file to preview your plot here.");
       return;
     }
 
-    if (elPlotType.value === "shift") {
-      renderShiftPlot();
-    } else {
-      renderTrajectoryPlot();
-    }
+    if (elPlotType.value === "shift") renderShiftPlot();
+    else renderTrajectoryPlot();
   }
 
   function updatePanels() {
@@ -440,52 +353,434 @@
     elShiftPanel.classList.toggle("tool3-hidden", !isShift);
     elTrajPanel.classList.toggle("tool3-hidden", isShift);
     elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
-    if (isShift) {
-      hideGifOutput();
-    } else {
-      showGifCard();
+  }
+
+  function getGifModeConfig() {
+    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
+    if (mode === "high") {
+      return { mode, width: 760, height: 500, maxFrames: 80, defaultFrames: 30, defaultFps: 8, quality: 8, workers: 2 };
     }
+    return { mode, width: 560, height: 360, maxFrames: 60, defaultFrames: 18, defaultFps: 6, quality: 12, workers: 2 };
   }
 
-  function showGifCard() {
-    if (elGifCard) elGifCard.classList.remove("tool3-hidden");
+  function syncGifInputsToMode() {
+    const cfg = getGifModeConfig();
+    elFrames.max = String(cfg.maxFrames);
+    if (!elFrames.dataset.userEdited) elFrames.value = String(cfg.defaultFrames);
+    if (!elFps.dataset.userEdited) elFps.value = String(cfg.defaultFps);
   }
 
-  function setGifDownloadEnabled(enabled, href) {
-    if (!elGifDownload) return;
-    if (enabled) {
-      elGifDownload.href = href || "#";
-      elGifDownload.removeAttribute("aria-disabled");
-      elGifDownload.style.pointerEvents = "";
-      elGifDownload.style.opacity = "";
-    } else {
-      elGifDownload.href = "#";
-      elGifDownload.setAttribute("aria-disabled", "true");
-      elGifDownload.style.pointerEvents = "none";
-      elGifDownload.style.opacity = ".55";
+  function buildFrameIndices(nPoints, nFrames) {
+    if (nPoints <= 1) return [0];
+    const steps = Math.max(2, nFrames);
+    const out = [];
+    for (let i = 0; i < steps; i++) {
+      out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
     }
+    return Array.from(new Set(out));
   }
 
-  function hideGifOutput() {
-    if (elGifCard) elGifCard.classList.add("tool3-hidden");
-    setGifDownloadEnabled(false);
-    setGifStatus("GIF export is available for the trajectory plot. Use “Fast” for quick export or “High quality” for smoother output.");
-  }
-
-  function revokeGifUrl() {
-    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(state.gifUrl);
+  function getMinMax(values) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of values) {
+      if (!Number.isFinite(v)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
     }
-    state.gifUrl = "";
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+    if (lo === hi) {
+      const pad = Math.abs(lo || 1) * 0.1 || 1;
+      return [lo - pad, hi + pad];
+    }
+    const pad = (hi - lo) * 0.08;
+    return [lo - pad, hi + pad];
   }
 
-  function dataUrlToImage(dataUrl) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = dataUrl;
+  function createCanvas(cfg) {
+    const canvas = document.createElement("canvas");
+    canvas.width = cfg.width;
+    canvas.height = cfg.height;
+    return canvas;
+  }
+
+  function drawBackground(ctx, w, h, title) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#111827";
+    ctx.font = "600 20px Inter, Arial, sans-serif";
+    ctx.fillText(title, 18, 28);
+  }
+
+  function drawSimpleLegend(ctx, items, x, y) {
+    ctx.font = "12px Inter, Arial, sans-serif";
+    items.forEach((it, i) => {
+      const yy = y + i * 18;
+      ctx.strokeStyle = it.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, yy - 4);
+      ctx.lineTo(x + 20, yy - 4);
+      ctx.stroke();
+      ctx.fillStyle = "#374151";
+      ctx.fillText(it.label, x + 28, yy);
     });
+  }
+
+  function renderShiftGifFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const iw = w - pad.l - pad.r;
+    const ih = h - pad.t - pad.b;
+
+    const allY = d.yn.concat(d.ynp);
+    const [ymin, ymax] = getMinMax(allY);
+    const n = Math.max(1, d.yn.length - 1);
+    const xMap = (i) => pad.l + (iw * i / n);
+    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin)) * ih;
+
+    drawBackground(ctx, w, h, `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`);
+
+    // axes
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    // y ticks
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    for (let k = 0; k <= 4; k++) {
+      const frac = k / 4;
+      const yy = pad.t + ih - frac * ih;
+      const val = ymin + frac * (ymax - ymin);
+      ctx.strokeStyle = "#f1f5f9";
+      ctx.beginPath();
+      ctx.moveTo(pad.l, yy);
+      ctx.lineTo(pad.l + iw, yy);
+      ctx.stroke();
+      ctx.fillText(val.toFixed(3), 8, yy + 4);
+    }
+
+    // x labels
+    const idxs = [0, Math.floor(d.t.length / 2), Math.max(0, d.t.length - 1)];
+    idxs.forEach((ii) => {
+      if (!d.t.length) return;
+      const xx = xMap(ii);
+      ctx.fillStyle = "#6b7280";
+      ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12);
+    });
+
+    // full paths light
+    function drawPath(arr, color, upTo, dash) {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      if (dash) ctx.setLineDash([8, 5]);
+      ctx.beginPath();
+      for (let i = 0; i <= upTo; i++) {
+        const xx = xMap(i);
+        const yy = yMap(arr[i]);
+        if (i === 0) ctx.moveTo(xx, yy);
+        else ctx.lineTo(xx, yy);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // background full traces
+    ctx.globalAlpha = 0.18;
+    drawPath(d.yn, "#2563eb", d.yn.length - 1, false);
+    drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true);
+    ctx.globalAlpha = 1;
+
+    const activeIdx = Math.max(0, Math.min(idx, d.yn.length - 1));
+    drawPath(d.yn, "#2563eb", activeIdx, false);
+    drawPath(d.ynp, "#dc2626", activeIdx, true);
+
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    const xActive = xMap(activeIdx);
+
+    // moving points
+    ctx.fillStyle = "#2563eb";
+    ctx.beginPath();
+    ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = "600 12px Inter, Arial, sans-serif";
+    ctx.fillText(`frame ${activeIdx + 1}/${d.yn.length}`, w - 130, 26);
+    ctx.fillText(String(d.t[activeIdx]), w - 130, 44);
+
+    drawSimpleLegend(ctx, [
+      { color: "#2563eb", label: `${d.yCol} (n)` },
+      { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }
+    ], w - 180, 72);
+
+    return canvas;
+  }
+
+  function renderTrajectory2DGifFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const iw = w - pad.l - pad.r;
+    const ih = h - pad.t - pad.b;
+    const [xmin, xmax] = getMinMax(d.x);
+    const [ymin, ymax] = getMinMax(d.y);
+    const xMap = (v) => pad.l + ((v - xmin) / (xmax - xmin)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin)) * ih;
+
+    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
+
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    // light full path
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.yCol}`, 0, 0);
+    ctx.restore();
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+
+    return canvas;
+  }
+
+  function project3DFactory(xs, ys, zs, width, height) {
+    const [xmin, xmax] = getMinMax(xs);
+    const [ymin, ymax] = getMinMax(ys);
+    const [zmin, zmax] = getMinMax(zs);
+
+    const nx = (v, lo, hi) => (v - lo) / (hi - lo) * 2 - 1;
+
+    const az = Math.PI / 4.3;
+    const el = Math.PI / 8.8;
+
+    const pts = xs.map((x, i) => {
+      const X = nx(x, xmin, xmax);
+      const Y = nx(ys[i], ymin, ymax);
+      const Z = nx(zs[i], zmin, zmax);
+
+      const xr = Math.cos(az) * X - Math.sin(az) * Y;
+      const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
+      const yr = Math.cos(el) * yr0 - Math.sin(el) * Z;
+      const zr = Math.sin(el) * yr0 + Math.cos(el) * Z;
+
+      return { x: xr, y: yr, z: zr };
+    });
+
+    let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
+    pts.forEach((p) => {
+      if (p.x < minPX) minPX = p.x;
+      if (p.x > maxPX) maxPX = p.x;
+      if (p.y < minPY) minPY = p.y;
+      if (p.y > maxPY) maxPY = p.y;
+    });
+
+    const pad = 0.12;
+    const sx = (maxPX - minPX) || 1;
+    const sy = (maxPY - minPY) || 1;
+    minPX -= sx * pad; maxPX += sx * pad;
+    minPY -= sy * pad; maxPY += sy * pad;
+
+    return function (i) {
+      const p = pts[i];
+      const px = ((p.x - minPX) / (maxPX - minPX)) * (width) ;
+      const py = height - ((p.y - minPY) / (maxPY - minPY)) * (height);
+      return { x: px, y: py };
+    };
+  }
+
+  function renderTrajectory3DGifFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 24, r: 24, t: 50, b: 24 };
+    const iw = w - pad.l - pad.r;
+    const ih = h - pad.t - pad.b;
+
+    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol}–${d.zCol} trajectory (3D projection)`);
+
+    const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
+    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+
+    ctx.save();
+    ctx.translate(pad.l, pad.t);
+
+    // light full path
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    const point = proj(activeIdx);
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`3D projected view`, 18, h - 14);
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+
+    return canvas;
+  }
+
+  async function generateGif() {
+    if (!window.GIF) {
+      setGifStatus("GIF encoder did not load. Refresh the page and try again.");
+      return;
+    }
+    if (!state.rows.length) {
+      setGifStatus("Upload data first before generating a GIF.");
+      return;
+    }
+
+    revokeGifUrl();
+    setGifDownloadEnabled(false);
+    setGifPreview("Generating GIF…");
+    setGifStatus("Preparing GIF…");
+
+    const cfg = getGifModeConfig();
+    const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
+    const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
+
+    let totalPoints = 0;
+    let frameIndices = [];
+    let drawFrame = null;
+    let outName = "plot_animation.gif";
+
+    if (elPlotType.value === "shift") {
+      const d = getShiftData();
+      if (d.yn.length < 2) {
+        setGifStatus("Need at least two valid aligned shifted-frame points for GIF export.");
+        return;
+      }
+      totalPoints = d.yn.length;
+      frameIndices = buildFrameIndices(totalPoints, Math.min(nFramesInput, totalPoints));
+      drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
+      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted.gif`;
+    } else {
+      const d = getTrajectoryData();
+      if (d.x.length < 2) {
+        setGifStatus("Need at least two valid trajectory points for GIF export.");
+        return;
+      }
+      totalPoints = d.x.length;
+      frameIndices = buildFrameIndices(totalPoints, Math.min(nFramesInput, totalPoints));
+      if (d.mode === "3d") drawFrame = (idx) => renderTrajectory3DGifFrame(d, idx, cfg);
+      else drawFrame = (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
+      outName = `${(d.mode === "3d" ? "trajectory3d" : "trajectory2d")}.gif`;
+    }
+
+    const delay = Math.max(40, Math.round(1000 / fps));
+    const gif = new window.GIF({
+      workers: cfg.workers,
+      quality: cfg.quality,
+      width: cfg.width,
+      height: cfg.height,
+      workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
+    });
+
+    for (let i = 0; i < frameIndices.length; i++) {
+      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
+      const canvas = drawFrame(frameIndices[i]);
+      gif.addFrame(canvas, { delay, copy: true });
+      if (i % 4 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    setGifStatus("Encoding GIF…");
+
+    gif.on("progress", (p) => {
+      const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
+      setGifStatus(`Encoding GIF… ${pct}%`);
+    });
+
+    gif.on("finished", (blob) => {
+      revokeGifUrl();
+      state.gifUrl = URL.createObjectURL(blob);
+      setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
+      setGifDownloadEnabled(true, state.gifUrl, outName);
+      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
+    });
+
+    gif.on("abort", () => {
+      setGifStatus("GIF encoding was aborted.");
+      setGifDownloadEnabled(false);
+    });
+
+    gif.render();
   }
 
   async function loadWorkbookFromFile(file) {
@@ -507,181 +802,11 @@
       return;
     }
 
-    elSheet.innerHTML = sheets
-      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
-      .join("");
+    elSheet.innerHTML = sheets.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
     elSheet.value = sheets[0];
-
     parseSheet(sheets[0]);
     refreshControls();
     renderCurrentPlot();
-  }
-
-  function buildFrameIndices(nPoints, nFrames) {
-    if (nPoints <= 1) return [0];
-    const steps = Math.max(2, nFrames);
-    const out = [];
-    for (let i = 0; i < steps; i++) {
-      const idx = Math.round((i / (steps - 1)) * (nPoints - 1));
-      out.push(idx);
-    }
-    return Array.from(new Set(out));
-  }
-
-  async function makeTrajectoryFrame(div, d, idx, exportSize) {
-    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
-    let traces, layout;
-
-    if (d.mode === "3d") {
-      traces = [
-        {
-          x: d.x.slice(0, idx + 1),
-          y: d.y.slice(0, idx + 1),
-          z: d.z.slice(0, idx + 1),
-          type: "scatter3d",
-          mode: "lines",
-          line: { width: 5 },
-          name: "Trajectory"
-        },
-        {
-          x: [d.x[idx]],
-          y: [d.y[idx]],
-          z: [d.z[idx]],
-          type: "scatter3d",
-          mode: "markers",
-          marker: { size: pointSize },
-          name: "Current point"
-        }
-      ];
-      layout = {
-        title: `${d.xCol}–${d.yCol}–${d.zCol} trajectory`,
-        margin: { l: 10, r: 10, t: 50, b: 10 },
-        scene: build3DScene(d.xCol, d.yCol, d.zCol),
-        paper_bgcolor: "#fff"
-      };
-    } else {
-      traces = [
-        {
-          x: d.x.slice(0, idx + 1),
-          y: d.y.slice(0, idx + 1),
-          type: "scatter",
-          mode: "lines",
-          line: { width: 3 },
-          name: "Trajectory"
-        },
-        {
-          x: [d.x[idx]],
-          y: [d.y[idx]],
-          type: "scatter",
-          mode: "markers",
-          marker: { size: pointSize },
-          name: "Current point"
-        }
-      ];
-      layout = {
-        title: `${d.xCol}–${d.yCol} trajectory`,
-        margin: { l: 62, r: 24, t: 50, b: 56 },
-        xaxis: { title: d.xCol, automargin: true },
-        yaxis: { title: d.yCol, automargin: true },
-        paper_bgcolor: "#fff",
-        plot_bgcolor: "#fff"
-      };
-    }
-
-    await Plotly.react(div, traces, layout, {
-      responsive: false,
-      staticPlot: true,
-      displayModeBar: false,
-      displaylogo: false
-    });
-
-    const ex = exportSize || { width: 560, height: 360 };
-    return Plotly.toImage(div, {
-      format: "png",
-      width: ex.width,
-      height: ex.height
-    });
-  }
-
-  async function generateGif() {
-    const d = state.currentTrajectory || getTrajectoryData();
-    if (!d || !d.x || d.x.length < 2) {
-      setGifDownloadEnabled(false);
-      setGifStatus("Need at least two valid trajectory points before exporting a GIF.");
-      return;
-    }
-    if (!window.GIF) {
-      setGifDownloadEnabled(false);
-      setGifStatus("GIF encoder did not load. Refresh the page and try again.");
-      return;
-    }
-
-    showGifCard();
-    setGifDownloadEnabled(false);
-    setGifStatus("Rendering GIF frames…");
-    revokeGifUrl();
-
-    const cfg = getGifModeConfig();
-    const nFrames = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
-    const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
-    const idxs = buildFrameIndices(d.x.length, nFrames);
-
-    const offscreen = document.createElement("div");
-    offscreen.style.position = "fixed";
-    offscreen.style.left = "-99999px";
-    offscreen.style.top = "0";
-    offscreen.style.width = `${cfg.width}px`;
-    offscreen.style.height = `${cfg.height}px`;
-    document.body.appendChild(offscreen);
-
-    const delay = Math.max(40, Math.round(1000 / fps));
-    const gif = new window.GIF({
-      workers: cfg.workers,
-      quality: cfg.quality,
-      width: cfg.width,
-      height: cfg.height,
-      workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
-    });
-
-    try {
-      for (let i = 0; i < idxs.length; i++) {
-        setGifStatus(`Rendering frame ${i + 1} of ${idxs.length}…`);
-        const dataUrl = await makeTrajectoryFrame(offscreen, d, idxs[i], { width: cfg.width, height: cfg.height });
-        const img = await dataUrlToImage(dataUrl);
-        gif.addFrame(img, { delay, copy: true });
-      }
-    } catch (err) {
-      console.error(err);
-      setGifDownloadEnabled(false);
-      setGifStatus("GIF frame rendering failed. Try fewer frames or switch to 2D mode.");
-      document.body.removeChild(offscreen);
-      return;
-    }
-
-    document.body.removeChild(offscreen);
-    setGifStatus("Encoding GIF…");
-
-    gif.on("progress", (p) => {
-      const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
-      setGifStatus(`Encoding GIF… ${pct}%`);
-    });
-
-    gif.on("finished", (blob) => {
-      revokeGifUrl();
-      state.gifUrl = URL.createObjectURL(blob);
-      if (elGifPreview) {
-        elGifPreview.innerHTML = `<img src="${state.gifUrl}" alt="Trajectory GIF preview" />`;
-      }
-      setGifDownloadEnabled(true, state.gifUrl);
-      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${idxs.length} frames at ${fps} fps.`);
-    });
-
-    gif.on("abort", () => {
-      setGifDownloadEnabled(false);
-      setGifStatus("GIF encoding was aborted.");
-    });
-
-    gif.render();
   }
 
   function handleSheetChange() {
@@ -690,6 +815,7 @@
     renderCurrentPlot();
   }
 
+  // Events
   elFile.addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -706,21 +832,14 @@
 
   [elPlotType, elTimeShift, elShiftVar, elSkip, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
     if (!el) return;
-    el.addEventListener("change", () => {
-      updatePanels();
-      renderCurrentPlot();
-    });
+    el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
     el.addEventListener("input", () => {
       if (el === elSkip || el === elPointSize) renderCurrentPlot();
     });
   });
 
-  if (elFrames) {
-    elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
-  }
-  if (elFps) {
-    elFps.addEventListener("input", () => { elFps.dataset.userEdited = "1"; });
-  }
+  if (elFrames) elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
+  if (elFps) elFps.addEventListener("input", () => { elFps.dataset.userEdited = "1"; });
   if (elGifQuality) {
     elGifQuality.addEventListener("change", () => {
       if (elFrames) delete elFrames.dataset.userEdited;
@@ -728,11 +847,9 @@
       syncGifInputsToMode();
     });
   }
+  if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
 
-  if (elMakeGif) {
-    elMakeGif.addEventListener("click", generateGif);
-  }
-
+  // Init
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
