@@ -18,6 +18,8 @@
   const elZ = $("tool3Z");
   const elZWrap = $("tool3ZWrap");
 
+  const elEncoderMode = $("tool3EncoderMode");
+  const elLocalHelperStatus = $("tool3LocalHelperStatus");
   const elGifQuality = $("tool3GifQuality");
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
@@ -84,6 +86,51 @@
 
   function setGifPreview(msg) {
     if (elGifPreview) elGifPreview.innerHTML = msg;
+  }
+
+  function setLocalHelperStatus(msg) {
+    if (elLocalHelperStatus) elLocalHelperStatus.innerHTML = msg;
+  }
+
+  async function checkLocalHelper() {
+    try {
+      const resp = await fetch("http://127.0.0.1:8765/health", { method: "GET" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json().catch(() => ({}));
+      const engine = data.engine ? ` (${data.engine})` : "";
+      setLocalHelperStatus(`Local helper is running at <code>127.0.0.1:8765</code>${engine}. GIF assembly will be offloaded from the browser.`);
+      return true;
+    } catch (err) {
+      setLocalHelperStatus(`Local helper not detected. Run <code>python tool3_local_encoder.py</code> in your terminal, then try again. Browser encoder still works without it.`);
+      return false;
+    }
+  }
+
+  function isLocalMode() {
+    return !!elEncoderMode && elEncoderMode.value === "local";
+  }
+
+  async function canvasToDataUrl(canvas) {
+    return canvas.toDataURL("image/png");
+  }
+
+  async function encodeGifLocally(frameCanvases, fps, filename) {
+    const frames = [];
+    for (let i = 0; i < frameCanvases.length; i++) {
+      frames.push(await canvasToDataUrl(frameCanvases[i]));
+      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    const resp = await fetch("http://127.0.0.1:8765/encode-gif", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frames, fps, filename })
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(text || `Local helper failed: HTTP ${resp.status}`);
+    }
+    return await resp.blob();
   }
 
   function setGifDownloadEnabled(enabled, href, filename) {
@@ -727,12 +774,12 @@ function getWorkerCount() {
   }
 
   async function generateGif() {
-    if (!window.GIF) {
-      setGifStatus("GIF encoder did not load. Refresh the page and try again.");
-      return;
-    }
     if (!state.rows.length) {
       setGifStatus("Upload data first before generating a GIF.");
+      return;
+    }
+    if (!window.GIF && !isLocalMode()) {
+      setGifStatus("Browser GIF encoder did not load. Refresh the page and try again.");
       return;
     }
 
@@ -745,7 +792,6 @@ function getWorkerCount() {
     const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
     const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
 
-    let totalPoints = 0;
     let frameIndices = [];
     let drawFrame = null;
     let outName = "plot_animation.gif";
@@ -756,8 +802,7 @@ function getWorkerCount() {
         setGifStatus("Need at least two valid aligned shifted-frame points for GIF export.");
         return;
       }
-      totalPoints = d.yn.length;
-      frameIndices = buildFrameIndices(totalPoints, Math.min(nFramesInput, totalPoints));
+      frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
       drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
       outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted_time.gif`;
     } else {
@@ -766,11 +811,38 @@ function getWorkerCount() {
         setGifStatus("Need at least two valid trajectory points for GIF export.");
         return;
       }
-      totalPoints = d.x.length;
-      frameIndices = buildFrameIndices(totalPoints, Math.min(nFramesInput, totalPoints));
+      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
       if (d.mode === "3d") drawFrame = (idx) => renderTrajectory3DGifFrame(d, idx, cfg);
       else drawFrame = (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
       outName = `${(d.mode === "3d" ? "trajectory3d" : "trajectory2d")}.gif`;
+    }
+
+    const frameCanvases = [];
+    for (let i = 0; i < frameIndices.length; i++) {
+      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
+      frameCanvases.push(drawFrame(frameIndices[i]));
+      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    if (isLocalMode()) {
+      const ok = await checkLocalHelper();
+      if (!ok) {
+        setGifStatus("Local helper is not running. Start it in your terminal, then try again, or switch back to Browser encoder.");
+        return;
+      }
+      try {
+        setGifStatus("Sending frames to local helper for GIF assembly…");
+        const blob = await encodeGifLocally(frameCanvases, fps, outName);
+        state.gifUrl = URL.createObjectURL(blob);
+        setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
+        setGifDownloadEnabled(true, state.gifUrl, outName);
+        setGifStatus(`GIF ready (Local terminal helper). ${frameIndices.length} frames at ${fps} fps.`);
+      } catch (err) {
+        console.error(err);
+        setGifStatus(`Local helper failed: ${err.message || err}`);
+        setGifDownloadEnabled(false);
+      }
+      return;
     }
 
     const delay = Math.max(40, Math.round(1000 / fps));
@@ -782,20 +854,16 @@ function getWorkerCount() {
       workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
     });
 
-    for (let i = 0; i < frameIndices.length; i++) {
-      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
-      const canvas = drawFrame(frameIndices[i]);
-      gif.addFrame(canvas, { delay, copy: true });
-      if (i % 4 === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
+    for (let i = 0; i < frameCanvases.length; i++) {
+      gif.addFrame(frameCanvases[i], { delay, copy: true });
+      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    setGifStatus(`Encoding GIF with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}…`);
+    setGifStatus(`Encoding GIF in browser with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}…`);
 
     gif.on("progress", (p) => {
       const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
-      setGifStatus(`Encoding GIF with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}… ${pct}%`);
+      setGifStatus(`Encoding GIF in browser with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}… ${pct}%`);
     });
 
     gif.on("finished", (blob) => {
@@ -803,7 +871,7 @@ function getWorkerCount() {
       state.gifUrl = URL.createObjectURL(blob);
       setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
       setGifDownloadEnabled(true, state.gifUrl, outName);
-      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps, encoded with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}.`);
+      setGifStatus(`GIF ready (Browser encoder, ${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps, encoded with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}.`);
     });
 
     gif.on("abort", () => {
@@ -812,32 +880,6 @@ function getWorkerCount() {
     });
 
     gif.render();
-  }
-
-  async function loadWorkbookFromFile(file) {
-    const buffer = await file.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array" });
-
-    state.workbook = wb;
-    state.fileName = file.name || "uploaded file";
-
-    const sheets = wb.SheetNames || [];
-    if (!sheets.length) {
-      elSheet.innerHTML = '<option value="">No sheets found</option>';
-      state.sheetName = "";
-      state.headers = [];
-      state.rows = [];
-      state.numericHeaders = [];
-      setLoadStatus("This file did not contain any readable sheets.");
-      renderCurrentPlot();
-      return;
-    }
-
-    elSheet.innerHTML = sheets.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-    elSheet.value = sheets[0];
-    parseSheet(sheets[0]);
-    refreshControls();
-    renderCurrentPlot();
   }
 
   function handleSheetChange() {
@@ -878,11 +920,19 @@ function getWorkerCount() {
       syncGifInputsToMode();
     });
   }
+  if (elEncoderMode) {
+    elEncoderMode.addEventListener("change", () => {
+      if (isLocalMode()) checkLocalHelper();
+      else setLocalHelperStatus(`Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.`);
+    });
+  }
   if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
 
   // Init
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
+  if (elEncoderMode && isLocalMode()) checkLocalHelper();
+  else setLocalHelperStatus(`Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.`);
   renderCurrentPlot();
 })();

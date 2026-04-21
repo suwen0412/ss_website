@@ -164,16 +164,27 @@
               <h3 style="margin-top:0;">4. GIF export</h3>
               <div class="tool3-grid-2">
                 <label class="tool3-label">
+                  <span>Encoder mode</span>
+                  <select class="tool3-select" id="tool3EncoderMode">
+                    <option value="browser" selected>Browser encoder</option>
+                    <option value="local">Local terminal helper</option>
+                  </select>
+                </label>
+                <label class="tool3-label">
                   <span>GIF quality mode</span>
                   <select class="tool3-select" id="tool3GifQuality">
                     <option value="fast" selected>Fast</option>
                     <option value="high">High quality</option>
                   </select>
                 </label>
+              </div>
+              <div class="tool3-note" id="tool3LocalHelperStatus">Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.</div>
+              <div class="tool3-grid-2">
                 <label class="tool3-label">
                   <span>Moving point size</span>
                   <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
                 </label>
+                <div></div>
               </div>
 
               <div class="tool3-grid-2">
@@ -191,7 +202,7 @@
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Encoding is now optimized with multi-worker settings. Fast mode favors much quicker GIF assembly; High quality keeps a larger output canvas.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Browser mode keeps everything online. Local terminal helper mode sends the rendered frames to a local encoder on your machine so the slow GIF assembly step happens outside the browser.</div>
             </div>
           </div>
         </div>
@@ -211,7 +222,7 @@
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points. The encoder now uses more workers and more aggressive fast-mode compression to reduce the slow 'stacking frames into a GIF' step.</div>
+                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points. Browser mode stays fully online. Local helper mode keeps frame generation in the page, then asks a local Python process to assemble the GIF faster on your computer.</div>
                 </div>
                 <div>
                   <p style="margin-top:0;"><strong>Why this is faster</strong></p>
