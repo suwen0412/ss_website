@@ -355,13 +355,44 @@
     elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
   }
 
+
+function getWorkerCount() {
+  const hc = (typeof navigator !== "undefined" && navigator.hardwareConcurrency)
+    ? navigator.hardwareConcurrency
+    : 4;
+  return Math.max(2, Math.min(8, hc));
+}
+
   function getGifModeConfig() {
-    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
-    if (mode === "high") {
-      return { mode, width: 760, height: 500, maxFrames: 80, defaultFrames: 30, defaultFps: 8, quality: 8, workers: 2 };
-    }
-    return { mode, width: 560, height: 360, maxFrames: 60, defaultFrames: 18, defaultFps: 6, quality: 12, workers: 2 };
+  const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
+
+  // gif.js quality: bigger number = faster encoding, lower quality.
+  // The bottleneck here is combining frames into the final GIF, so these presets
+  // prioritize encoder speed much more aggressively in Fast mode.
+  if (mode === "high") {
+    return {
+      mode,
+      width: 640,
+      height: 420,
+      maxFrames: 60,
+      defaultFrames: 24,
+      defaultFps: 8,
+      quality: 12,
+      workers: getWorkerCount()
+    };
   }
+
+  return {
+    mode,
+    width: 480,
+    height: 300,
+    maxFrames: 48,
+    defaultFrames: 16,
+    defaultFps: 6,
+    quality: 25,
+    workers: getWorkerCount()
+  };
+}
 
   function syncGifInputsToMode() {
     const cfg = getGifModeConfig();
@@ -728,7 +759,7 @@
       totalPoints = d.yn.length;
       frameIndices = buildFrameIndices(totalPoints, Math.min(nFramesInput, totalPoints));
       drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
-      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted.gif`;
+      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted_time.gif`;
     } else {
       const d = getTrajectoryData();
       if (d.x.length < 2) {
@@ -760,11 +791,11 @@
       }
     }
 
-    setGifStatus("Encoding GIF…");
+    setGifStatus(`Encoding GIF with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}…`);
 
     gif.on("progress", (p) => {
       const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
-      setGifStatus(`Encoding GIF… ${pct}%`);
+      setGifStatus(`Encoding GIF with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}… ${pct}%`);
     });
 
     gif.on("finished", (blob) => {
@@ -772,7 +803,7 @@
       state.gifUrl = URL.createObjectURL(blob);
       setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
       setGifDownloadEnabled(true, state.gifUrl, outName);
-      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
+      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps, encoded with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}.`);
     });
 
     gif.on("abort", () => {

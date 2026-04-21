@@ -191,7 +191,7 @@
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Fast mode uses a quicker canvas loop; High quality uses a larger output canvas.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Encoding is now optimized with multi-worker settings. Fast mode favors much quicker GIF assembly; High quality keeps a larger output canvas.</div>
             </div>
           </div>
         </div>
@@ -211,7 +211,7 @@
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points.</div>
+                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points. The encoder now uses more workers and more aggressive fast-mode compression to reduce the slow 'stacking frames into a GIF' step.</div>
                 </div>
                 <div>
                   <p style="margin-top:0;"><strong>Why this is faster</strong></p>
