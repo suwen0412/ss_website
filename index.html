@@ -112,7 +112,7 @@
       async function loadPubs() {
         const list = document.getElementById('pubList');
         try {
-          const res = await fetch('/data/publications.json', { headers: { 'Accept': 'application/json' } });
+          const res = await fetch('data/publications.json', { headers: { 'Accept': 'application/json' } });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const pubs = await res.json();
           list.innerHTML = pubs.map(p => `
@@ -183,86 +183,85 @@
 </div>
 </section>
 <section class="section" id="toolkit">
-<div class="container narrow">
-<h2>Toolkit</h2>
-<div class="cards">
-<div class="card">
-<h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
-<p>
-  Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
-  workbook directly in your browser. Your file is processed locally on your device (no upload).
-</p>
-<div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
-<label class="toolkit-label">
-<span>Select a .DTA file</span>
-<input accept=".dta,.DTA,.txt,text/plain" id="dtaFile" type="file"/>
-</label>
-<div class="toolkit-row">
-<label class="toolkit-check">
-<input checked="" id="includeHeaderSheet" type="checkbox"/>
-      Include header/metadata sheet
-    </label>
-</div>
-<div class="actions">
-<button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
-<a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
-</div>
-<p aria-live="polite" class="muted small" id="toolkitStatus">
-    Choose a file to enable conversion.
-  </p>
-<details class="toolkit-details">
-<summary>What will the Excel contain?</summary>
-<ul class="bullets" style="margin-top:.5rem">
-<li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block (e.g., <code>ZCURVE TABLE</code>, <code>CURVE1 TABLE</code>))</li>
-<li><strong>Columns:</strong> exported as-is from the DTA table</li>
-<li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
-</ul>
-</details>
-</div>
-</div>
+  <div class="container narrow">
+    <h2>Toolkit</h2>
+    <div class="cards toolkit-cards">
+      <div class="card">
+        <h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
+        <p>
+          Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
+          workbook directly in your browser. Your file is processed locally on your device (no upload).
+        </p>
+        <div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
+          <label class="toolkit-label">
+            <span>Select a .DTA file</span>
+            <input accept=".dta,.DTA,.txt,text/plain" id="dtaFile" type="file"/>
+          </label>
+          <div class="toolkit-row">
+            <label class="toolkit-check">
+              <input checked="" id="includeHeaderSheet" type="checkbox"/>
+              Include header/metadata sheet
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
+            <a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
+          </div>
+          <p aria-live="polite" class="muted small" id="toolkitStatus">
+            Choose a file to enable conversion.
+          </p>
+          <details class="toolkit-details">
+            <summary>What will the Excel contain?</summary>
+            <ul class="bullets" style="margin-top:.5rem">
+              <li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block such as <code>ZCURVE TABLE</code> or <code>CURVE1 TABLE</code>)</li>
+              <li><strong>Columns:</strong> exported as-is from the DTA table</li>
+              <li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
+            </ul>
+          </details>
+        </div>
+      </div>
 
-<div class="card">
-<h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
-<p>
-  Plot custom equations and overlay them with experimental datasets from Excel/CSV.
-  To keep this page uncluttered, the visualizer opens in a separate tab/window.
-  Everything runs locally in your browser (no uploads).
-</p>
-<ul class="bullets">
-  <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
-  <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
-  <li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
-</ul>
-<div class="actions">
-  <a class="btn primary" href="tool2.html" target="_blank" rel="noopener">Open Tool 2 (new window)</a>
-  <a class="btn" href="tool2.html">Open in this tab</a>
-</div>
-<p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
-</div>
+      <div class="card">
+        <h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
+        <p>
+          Plot custom equations and overlay them with experimental datasets from Excel/CSV.
+          To keep this page uncluttered, the visualizer opens in a separate tab/window.
+          Everything runs locally in your browser (no uploads).
+        </p>
+        <ul class="bullets">
+          <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
+          <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
+          <li><strong>Overlays:</strong> assign curves and datasets into up to 10 figures</li>
+        </ul>
+        <div class="actions">
+          <a class="btn primary" href="tool2.html" rel="noopener" target="_blank">Open Tool 2 (new window)</a>
+          <a class="btn" href="tool2.html">Open in this tab</a>
+        </div>
+        <p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
+      </div>
 
-<div class="card">
-<h3>Tool 3 — Time-Dependent Data Plotting &amp; Animation</h3>
-<p>
-  A lightweight Python toolkit for time-dependent datasets stored in Excel. It is designed for
-  workflows where your workbook contains one time column plus multiple variables, and you want
-  quick 2D/3D plots, lag plots, and animations with editable labels.
-</p>
-<ul class="bullets">
-  <li><strong>Input format:</strong> one Excel sheet with <code>time</code>, <code>variable 1</code>, <code>variable 2</code>, <code>variable 3</code></li>
-  <li><strong>Controls:</strong> choose the time-step skip value (1 = no skip) and switch between 2D and 3D plotting modes</li>
-  <li><strong>Lag plots:</strong> create <code>x(n)</code> vs <code>x(n+skip)</code> directly from the loaded data</li>
-  <li><strong>Editable labels:</strong> customize axis labels, titles, and displayed variable names</li>
-</ul>
-<div class="actions">
-  <a class="btn primary" href="tool3.html">Open Tool 3 details</a>
-  <a class="btn" download href="assets/downloads/toolkit3_time_dependent_plotting.py">Download Toolkit 3 (.py)</a>
-  <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
-</div>
-<p class="muted small">The example workbook shows the required table structure so visitors can format their own data quickly.</p>
-</div>
-</div>
-</div>
-</div>
+      <div class="card">
+        <h3>Tool 3 — Time-Dependent Data Plotting &amp; Animation</h3>
+        <p>
+          A lightweight Python toolkit for time-dependent datasets stored in Excel. It is designed for
+          workflows where your workbook contains one time column plus multiple variables, and you want
+          quick 2D and 3D plots, lag plots, and animations with editable labels.
+        </p>
+        <ul class="bullets">
+          <li><strong>Input format:</strong> one Excel sheet with <code>time</code>, <code>variable 1</code>, <code>variable 2</code>, <code>variable 3</code></li>
+          <li><strong>Controls:</strong> choose the time-step skip value (1 = no skip) and switch between 2D and 3D plotting modes</li>
+          <li><strong>Lag plots:</strong> create <code>x(n)</code> vs <code>x(n+skip)</code> directly from the loaded data</li>
+          <li><strong>Editable labels:</strong> customize axis labels, titles, and displayed variable names</li>
+        </ul>
+        <div class="actions">
+          <a class="btn primary" href="tool3.html">Open Tool 3 details</a>
+          <a class="btn" download href="assets/downloads/toolkit3_time_dependent_plotting.py">Download Toolkit 3 (.py)</a>
+          <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
+        </div>
+        <p class="muted small">The example workbook shows the required table structure so visitors can format their own data quickly.</p>
+      </div>
+    </div>
+  </div>
 </section>
 <section class="section" id="contact">
 <div class="container narrow">
