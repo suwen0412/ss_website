@@ -763,6 +763,45 @@
     return parts;
   }
 
+
+  function encodeAnimatedGifWithGifJs(frameCanvases, cfg, fps, onProgress) {
+    return new Promise((resolve, reject) => {
+      if (!window.GIF) {
+        reject(new Error("GIF.js is not available."));
+        return;
+      }
+
+      const workerCount = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1 || 2));
+      const qualityValue = cfg.mode === "high" ? 8 : 14;
+      const gif = new window.GIF({
+        workers: workerCount,
+        quality: qualityValue,
+        width: cfg.width,
+        height: cfg.height,
+        repeat: 0,
+        background: "#ffffff",
+        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js"
+      });
+
+      const delayMs = Math.max(50, Math.round(1000 / fps));
+      frameCanvases.forEach((canvas) => {
+        gif.addFrame(canvas, { copy: true, delay: delayMs });
+      });
+
+      gif.on("progress", (ratio) => {
+        if (onProgress) onProgress(ratio, frameCanvases.length);
+      });
+      gif.on("finished", (blob) => resolve(blob));
+      gif.on("abort", () => reject(new Error("GIF export was aborted.")));
+
+      try {
+        gif.render();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
   function encodeAnimatedGif(frameCanvases, width, height, delayCs, onProgress) {
     const palette = buildGIFPalette332();
     const parts = [];
@@ -867,15 +906,30 @@
       if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    const delayCs = Math.max(2, Math.round(100 / fps));
     setGifStatus("Writing GIF file…");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
-      if (i % 2 === 0 || i === total - 1) {
-        setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
+    let blob;
+    try {
+      if (window.GIF) {
+        blob = await encodeAnimatedGifWithGifJs(frameCanvases, cfg, fps, (ratio) => {
+          const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+          setGifStatus(`Writing GIF file… ${pct}%`);
+        });
+      } else {
+        const delayCs = Math.max(2, Math.round(100 / fps));
+        blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
+          if (i % 2 === 0 || i === total - 1) {
+            setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error(err);
+      setGifPreview("GIF export failed. Please try Fast mode or fewer frames.");
+      setGifStatus("GIF export failed while writing the file.");
+      return;
+    }
 
     revokeGifUrl();
     state.gifUrl = URL.createObjectURL(blob);
@@ -926,6 +980,6 @@
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
-  setGifStatus("GIF export is available for both plot types. This version uses a built-in lightweight encoder.");
+  setGifStatus("GIF export is available for both plot types. This version uses a reliable browser-side encoder and falls back to the built-in writer if needed.");
   renderCurrentPlot();
 })();
