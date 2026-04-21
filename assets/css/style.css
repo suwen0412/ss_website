@@ -321,3 +321,24 @@ body.tool2-float-dragging{
   user-select: none;
   cursor: move;
 }
+
+
+/* Home hero carousel: preserve full figure titles and captions */
+.carousel {
+  background: #f7f7f8;
+}
+.slide {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#f7f7f8;
+}
+.slide img {
+  width:100%;
+  height:420px;
+  object-fit:contain;
+  background:#f7f7f8;
+}
+@media (max-width: 900px) {
+  .slide img { height: 320px; }
+}

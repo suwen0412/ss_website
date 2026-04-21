@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tool 3 — Time-Series Plotter & GIF Export</title>
-  <meta name="description" content="Upload Excel/CSV, choose a plot type, make shifted-frame or trajectory plots, and export an animated GIF." />
+  <title>Tool 3 — Easy GIF Maker for Time-Series Data</title>
+  <meta name="description" content="Upload Excel or CSV, choose a sheet and columns, preview a plot, and export an animated GIF without coding." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
@@ -16,10 +16,11 @@
     .toolpage-head h1{ margin:0; font-size: clamp(24px, 3vw, 36px); }
     .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 840px; }
     .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top:1rem; }
-    .tool3-left{ width:390px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
+    .tool3-left{ width:400px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
     .tool3-right{ flex:1 1 auto; min-width:0; }
     .tool3-panel + .tool3-panel{ margin-top:14px; }
     .tool3-panel .card{ padding:18px; }
+    .tool3-step{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px; background:#b91c1c; color:#fff; font-weight:800; font-size:.9rem; margin-right:8px; }
     .tool3-label{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; font-weight:600; }
     .tool3-label span{ font-size:.95rem; }
     .tool3-input, .tool3-select, .tool3-number{
@@ -31,6 +32,7 @@
     .tool3-note{ color:#5b6472; font-size:.92rem; margin-top:6px; }
     .tool3-status{ color:#5b6472; font-size:.92rem; margin-top:8px; }
     .tool3-hidden{ display:none !important; }
+    .tool3-help{ background:#fff8f1; border:1px solid #f6d7ae; border-radius:14px; padding:12px 14px; color:#7c4a03; font-size:.93rem; }
     .tool3-plotcard .card{ padding:18px; }
     .tool3-plot{ width:100%; height:620px; border-radius:18px; overflow:hidden; border:1px solid rgba(0,0,0,.08); background:#fff; }
     .tool3-meta{ margin-top:10px; color:#5b6472; font-size:.95rem; }
@@ -56,12 +58,11 @@
     <div class="container">
       <div class="toolpage-head">
         <div>
-          <div class="tool3-badge">Tool 3 · Online</div>
-          <h1>Time-Series Plotter &amp; GIF Export</h1>
+          <div class="tool3-badge">Tool 3 · Online · No coding needed</div>
+          <h1>Easy GIF Maker for Time-Series Data</h1>
           <p>
-            Upload an Excel or CSV file, choose a sheet and your columns, then make <strong>one</strong> of two plot types:
-            <strong>(A)</strong> a shifted-frame time plot of <code>y(n)</code> and <code>y(n+skip)</code> versus time, or
-            <strong>(B)</strong> a 2D/3D variable trajectory plot. You can export an animated GIF from <strong>either</strong> plot type.
+            This version is designed to be as simple as possible. Upload your Excel or CSV file, pick the sheet,
+            choose one plot type, preview it, then click <strong>Generate GIF</strong>.
           </p>
         </div>
         <div class="tool3-actions">
@@ -74,9 +75,12 @@
         <div class="tool3-left">
           <div class="tool3-panel">
             <div class="card">
-              <h3 style="margin-top:0;">1. Upload data</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">1</span>Upload your file</h3>
+              <div class="tool3-help">
+                Use the example Excel if you want a template. After uploading, the sheet list should fill in automatically.
+              </div>
               <label class="tool3-label">
-                <span>Excel / CSV file</span>
+                <span>Excel or CSV file</span>
                 <input class="tool3-input" id="tool3File" type="file" accept=".xlsx,.xls,.csv,.txt" />
               </label>
               <label class="tool3-label">
@@ -84,29 +88,28 @@
                 <select class="tool3-select" id="tool3Sheet"></select>
               </label>
               <div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
-              <div class="tool3-note">Expected format: one time column plus one or more numeric variable columns.</div>
             </div>
           </div>
 
           <div class="tool3-panel">
             <div class="card">
-              <h3 style="margin-top:0;">2. Choose plot type</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">2</span>Choose the plot type</h3>
               <label class="tool3-label">
                 <span>Plot type</span>
                 <select class="tool3-select" id="tool3PlotType">
-                  <option value="shift">Shifted-frame time plot — y(n) and y(n+skip) vs time</option>
-                  <option value="trajectory">Variable trajectory — 2D / 3D path</option>
+                  <option value="shift">Shifted-time plot: y(n) and y(n+skip) vs time</option>
+                  <option value="trajectory">Trajectory plot: 2D or 3D variable path</option>
                 </select>
               </label>
               <div class="tool3-note" id="tool3Summary">
-                After loading a sheet, choose the columns below. The main plot updates automatically.
+                After loading a sheet, choose the columns below. The plot updates automatically.
               </div>
             </div>
           </div>
 
           <div class="tool3-panel" id="tool3ShiftPanel">
             <div class="card">
-              <h3 style="margin-top:0;">3A. Shifted-frame settings</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">3A</span>Shifted-time settings</h3>
               <label class="tool3-label">
                 <span>Time column</span>
                 <select class="tool3-select" id="tool3TimeShift"></select>
@@ -119,16 +122,16 @@
                 <span>Skip (frames)</span>
                 <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
               </label>
-              <div class="tool3-note">This plot overlays <code>y(n)</code> and <code>y(n+skip)</code> against the same time axis, and the GIF animates progression through time.</div>
+              <div class="tool3-note">The GIF will show the moving comparison of y(n) and y(n+skip) through time.</div>
             </div>
           </div>
 
           <div class="tool3-panel tool3-hidden" id="tool3TrajectoryPanel">
             <div class="card">
-              <h3 style="margin-top:0;">3B. Trajectory settings</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">3B</span>Trajectory settings</h3>
               <div class="tool3-grid-2">
                 <label class="tool3-label">
-                  <span>Time/order column</span>
+                  <span>Time / order column</span>
                   <select class="tool3-select" id="tool3TimeTraj"></select>
                 </label>
                 <label class="tool3-label">
@@ -139,7 +142,6 @@
                   </select>
                 </label>
               </div>
-
               <div class="tool3-grid-3">
                 <label class="tool3-label">
                   <span>X variable</span>
@@ -154,55 +156,41 @@
                   <select class="tool3-select" id="tool3Z"></select>
                 </label>
               </div>
-
-              <div class="tool3-note">Trajectory GIF export uses a fast canvas drawing loop rather than re-rendering Plotly every frame.</div>
+              <div class="tool3-note">The GIF will follow the moving point along your selected path.</div>
             </div>
           </div>
 
           <div class="tool3-panel">
             <div class="card">
-              <h3 style="margin-top:0;">4. GIF export</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">4</span>Make the GIF</h3>
               <div class="tool3-grid-2">
                 <label class="tool3-label">
-                  <span>Encoder mode</span>
-                  <select class="tool3-select" id="tool3EncoderMode">
-                    <option value="browser" selected>Browser encoder</option>
-                    <option value="local">Local terminal helper</option>
-                  </select>
-                </label>
-                <label class="tool3-label">
-                  <span>GIF quality mode</span>
+                  <span>Quality</span>
                   <select class="tool3-select" id="tool3GifQuality">
                     <option value="fast" selected>Fast</option>
                     <option value="high">High quality</option>
                   </select>
                 </label>
-              </div>
-              <div class="tool3-note" id="tool3LocalHelperStatus">Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.</div>
-              <div class="tool3-grid-2">
                 <label class="tool3-label">
                   <span>Moving point size</span>
                   <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
                 </label>
-                <div></div>
               </div>
-
               <div class="tool3-grid-2">
                 <label class="tool3-label">
-                  <span>GIF frames</span>
+                  <span>Frames</span>
                   <input class="tool3-number" id="tool3Frames" type="number" min="8" max="80" step="1" value="18" />
                 </label>
                 <label class="tool3-label">
-                  <span>GIF fps</span>
+                  <span>FPS</span>
                   <input class="tool3-number" id="tool3Fps" type="number" min="1" max="20" step="1" value="6" />
                 </label>
               </div>
-
               <div class="tool3-actions">
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. Browser mode keeps everything online. Local terminal helper mode sends the rendered frames to a local encoder on your machine so the slow GIF assembly step happens outside the browser.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types.</div>
             </div>
           </div>
         </div>
@@ -210,7 +198,7 @@
         <div class="tool3-right">
           <div class="tool3-plotcard">
             <div class="card">
-              <h3 style="margin-top:0;">Visualization</h3>
+              <h3 style="margin-top:0;">Preview</h3>
               <div class="tool3-plot" id="tool3Plot"></div>
               <div class="tool3-meta" id="tool3Meta">Load a file to preview your plot here.</div>
             </div>
@@ -222,14 +210,14 @@
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">The GIF follows the currently selected plot type and shows progressive motion with highlighted moving points. Browser mode stays fully online. Local helper mode keeps frame generation in the page, then asks a local Python process to assemble the GIF faster on your computer.</div>
+                  <div class="tool3-note" style="margin-top:10px;">No coding needed: upload → choose columns → preview → generate → download.</div>
                 </div>
                 <div>
-                  <p style="margin-top:0;"><strong>Why this is faster</strong></p>
+                  <p style="margin-top:0;"><strong>Simple tips</strong></p>
                   <ul class="bullets">
-                    <li>The GIF loop now draws directly on a canvas.</li>
-                    <li>It no longer re-renders Plotly for every frame.</li>
-                    <li>Shifted-frame plots and trajectory plots both support GIF export.</li>
+                    <li>Start with <strong>Fast</strong> quality.</li>
+                    <li>Use fewer frames if your dataset is very long.</li>
+                    <li>The example Excel shows the expected column layout.</li>
                   </ul>
                 </div>
               </div>

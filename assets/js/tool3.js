@@ -6,20 +6,15 @@
   const elPlotType = $("tool3PlotType");
   const elShiftPanel = $("tool3ShiftPanel");
   const elTrajPanel = $("tool3TrajectoryPanel");
-
   const elTimeShift = $("tool3TimeShift");
   const elShiftVar = $("tool3ShiftVar");
   const elSkip = $("tool3Skip");
-
   const elTimeTraj = $("tool3TimeTraj");
   const elMode = $("tool3Mode");
   const elX = $("tool3X");
   const elY = $("tool3Y");
   const elZ = $("tool3Z");
   const elZWrap = $("tool3ZWrap");
-
-  const elEncoderMode = $("tool3EncoderMode");
-  const elLocalHelperStatus = $("tool3LocalHelperStatus");
   const elGifQuality = $("tool3GifQuality");
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
@@ -28,7 +23,6 @@
   const elGifDownload = $("tool3GifDownload");
   const elGifStatus = $("tool3GifStatus");
   const elGifPreview = $("tool3GifPreview");
-
   const elLoadStatus = $("tool3LoadStatus");
   const elSummary = $("tool3Summary");
   const elPlot = $("tool3Plot");
@@ -72,66 +66,10 @@
     return Math.max(lo, Math.min(hi, n));
   }
 
-  function setLoadStatus(msg) {
-    if (elLoadStatus) elLoadStatus.textContent = msg;
-  }
-
-  function setGifStatus(msg) {
-    if (elGifStatus) elGifStatus.textContent = msg;
-  }
-
-  function setMeta(msg) {
-    if (elMeta) elMeta.textContent = msg;
-  }
-
-  function setGifPreview(msg) {
-    if (elGifPreview) elGifPreview.innerHTML = msg;
-  }
-
-  function setLocalHelperStatus(msg) {
-    if (elLocalHelperStatus) elLocalHelperStatus.innerHTML = msg;
-  }
-
-  async function checkLocalHelper() {
-    try {
-      const resp = await fetch("http://127.0.0.1:8765/health", { method: "GET" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json().catch(() => ({}));
-      const engine = data.engine ? ` (${data.engine})` : "";
-      setLocalHelperStatus(`Local helper is running at <code>127.0.0.1:8765</code>${engine}. GIF assembly will be offloaded from the browser.`);
-      return true;
-    } catch (err) {
-      setLocalHelperStatus(`Local helper not detected. Run <code>python tool3_local_encoder.py</code> in your terminal, then try again. Browser encoder still works without it.`);
-      return false;
-    }
-  }
-
-  function isLocalMode() {
-    return !!elEncoderMode && elEncoderMode.value === "local";
-  }
-
-  async function canvasToDataUrl(canvas) {
-    return canvas.toDataURL("image/png");
-  }
-
-  async function encodeGifLocally(frameCanvases, fps, filename) {
-    const frames = [];
-    for (let i = 0; i < frameCanvases.length; i++) {
-      frames.push(await canvasToDataUrl(frameCanvases[i]));
-      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-
-    const resp = await fetch("http://127.0.0.1:8765/encode-gif", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ frames, fps, filename })
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(text || `Local helper failed: HTTP ${resp.status}`);
-    }
-    return await resp.blob();
-  }
+  function setLoadStatus(msg) { if (elLoadStatus) elLoadStatus.textContent = msg; }
+  function setGifStatus(msg) { if (elGifStatus) elGifStatus.textContent = msg; }
+  function setMeta(msg) { if (elMeta) elMeta.textContent = msg; }
+  function setGifPreview(html) { if (elGifPreview) elGifPreview.innerHTML = html; }
 
   function setGifDownloadEnabled(enabled, href, filename) {
     if (!elGifDownload) return;
@@ -150,9 +88,7 @@
   }
 
   function revokeGifUrl() {
-    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(state.gifUrl);
-    }
+    if (state.gifUrl && state.gifUrl.startsWith("blob:")) URL.revokeObjectURL(state.gifUrl);
     state.gifUrl = "";
   }
 
@@ -174,22 +110,12 @@
     }
     const current = selectEl.value;
     selectEl.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-    if (preferred && values.includes(preferred)) {
-      selectEl.value = preferred;
-    } else if (current && values.includes(current)) {
-      selectEl.value = current;
-    } else {
-      selectEl.value = values[0];
-    }
+    if (preferred && values.includes(preferred)) selectEl.value = preferred;
+    else if (current && values.includes(current)) selectEl.value = current;
+    else selectEl.value = values[0];
   }
 
-  function parseSheet(name) {
-    if (!state.workbook || !name) return;
-
-    const ws = state.workbook.Sheets[name];
-    if (!ws) return;
-
-    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  function parseMatrixToState(name, matrix) {
     if (!matrix.length) {
       state.sheetName = name;
       state.headers = [];
@@ -197,20 +123,15 @@
       state.numericHeaders = [];
       return;
     }
-
     const headers = uniqueHeaders(matrix[0]);
-    const rows = matrix
-      .slice(1)
-      .map((r) => {
-        const obj = {};
-        headers.forEach((h, i) => { obj[h] = r[i]; });
-        return obj;
-      })
-      .filter((obj) => Object.values(obj).some((v) => safeText(v) !== ""));
+    const rows = matrix.slice(1).map((r) => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = r[i]; });
+      return obj;
+    }).filter((obj) => Object.values(obj).some((v) => safeText(v) !== ""));
 
     const numericHeaders = headers.filter((h) => {
-      let valid = 0;
-      let numeric = 0;
+      let valid = 0, numeric = 0;
       for (const row of rows) {
         const raw = row[h];
         if (safeText(raw) === "") continue;
@@ -224,6 +145,14 @@
     state.headers = headers;
     state.rows = rows;
     state.numericHeaders = numericHeaders;
+  }
+
+  function parseSheet(name) {
+    if (!state.workbook || !name) return;
+    const ws = state.workbook.Sheets[name];
+    if (!ws) return;
+    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    parseMatrixToState(name, matrix);
   }
 
   function guessTimeColumn() {
@@ -251,23 +180,62 @@
     optionList(elY, vars, vars[1] || vars[0] || "");
     optionList(elZ, vars, vars[2] || vars[0] || "");
 
-    setLoadStatus(
-      state.rows.length
-        ? `Loaded ${state.rows.length} rows from “${state.sheetName}”.`
-        : "No usable rows were found in this sheet."
-    );
+    setLoadStatus(state.rows.length
+      ? `Loaded ${state.rows.length} rows from “${state.sheetName}”.`
+      : "This sheet is empty or could not be read.");
+  }
+
+  async function loadWorkbookFromFile(file) {
+    state.fileName = file.name || "uploaded file";
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+
+    // CSV / TXT fallback path
+    if (ext === "csv" || ext === "txt") {
+      const text = await file.text();
+      const wb = XLSX.read(text, { type: "string" });
+      state.workbook = wb;
+      const sheets = wb.SheetNames || ["Sheet1"];
+      elSheet.innerHTML = sheets.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+      elSheet.value = sheets[0];
+      parseSheet(sheets[0]);
+      refreshControls();
+      renderCurrentPlot();
+      return;
+    }
+
+    // Normal Excel path + binary fallback
+    try {
+      const buffer = await file.arrayBuffer();
+      state.workbook = XLSX.read(buffer, { type: "array" });
+    } catch (err) {
+      const b64 = await file.text();
+      state.workbook = XLSX.read(b64, { type: "binary" });
+    }
+
+    const sheets = (state.workbook && state.workbook.SheetNames) ? state.workbook.SheetNames : [];
+    if (!sheets.length) {
+      elSheet.innerHTML = '<option value="">No sheets found</option>';
+      state.sheetName = "";
+      state.headers = [];
+      state.rows = [];
+      state.numericHeaders = [];
+      setLoadStatus("This file did not contain any readable sheets.");
+      renderCurrentPlot();
+      return;
+    }
+
+    elSheet.innerHTML = sheets.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    elSheet.value = sheets[0];
+    parseSheet(sheets[0]);
+    refreshControls();
+    renderCurrentPlot();
   }
 
   function getShiftData() {
     const tCol = elTimeShift.value;
     const yCol = elShiftVar.value;
     const skip = clampInt(elSkip.value, 1, 100000, 1);
-
-    const t = [];
-    const xIndex = [];
-    const yn = [];
-    const ynp = [];
-
+    const t = [], yn = [], ynp = [];
     const n = Math.max(0, state.rows.length - skip);
     for (let i = 0; i < n; i++) {
       const y0 = num(state.rows[i][yCol]);
@@ -275,33 +243,21 @@
       if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
       const tRaw = state.rows[i][tCol];
       t.push(safeText(tRaw) === "" ? i : tRaw);
-      xIndex.push(i);
       yn.push(y0);
       ynp.push(y1);
     }
-
-    return { tCol, yCol, skip, t, xIndex, yn, ynp };
+    return { tCol, yCol, skip, t, yn, ynp };
   }
 
   function getTrajectoryData() {
     const mode = elMode.value;
-    const xCol = elX.value;
-    const yCol = elY.value;
-    const zCol = elZ.value;
-    const tCol = elTimeTraj.value;
-
+    const xCol = elX.value, yCol = elY.value, zCol = elZ.value, tCol = elTimeTraj.value;
     const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
     for (const row of state.rows) {
-      const xv = num(row[xCol]);
-      const yv = num(row[yCol]);
-      const zv = num(row[zCol]);
+      const xv = num(row[xCol]), yv = num(row[yCol]), zv = num(row[zCol]);
       if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
       if (mode === "3d" && !Number.isFinite(zv)) continue;
-
-      out.x.push(xv);
-      out.y.push(yv);
-      if (mode === "3d") out.z.push(zv);
-      out.t.push(row[tCol]);
+      out.x.push(xv); out.y.push(yv); if (mode === "3d") out.z.push(zv); out.t.push(row[tCol]);
     }
     return out;
   }
@@ -323,7 +279,6 @@
       { x: d.t, y: d.yn, type: "scatter", mode: "lines", name: `${d.yCol} (n)`, line: { width: 3 } },
       { x: d.t, y: d.ynp, type: "scatter", mode: "lines", name: `${d.yCol} (n+${d.skip})`, line: { width: 3, dash: "dash" } }
     ];
-
     const layout = {
       title: `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
@@ -333,17 +288,15 @@
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
     };
-
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
     setMeta(`Showing ${d.yn.length} aligned points. Time column: ${d.tCol}. Skip = ${d.skip}.`);
-    if (elSummary) elSummary.textContent = "Plot type A: shifted-frame time plot. GIF export animates progression through y(n) and y(n+skip).";
+    if (elSummary) elSummary.textContent = "Shifted-time plot selected. GIF export will animate the moving comparison of y(n) and y(n+skip).";
   }
 
   function renderTrajectoryPlot() {
     const d = getTrajectoryData();
     const pointSize = clampInt(elPointSize.value, 4, 24, 11);
     let traces, layout;
-
     if (d.mode === "3d") {
       traces = [
         { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Trajectory", line: { width: 5 } },
@@ -367,30 +320,25 @@
         xaxis: { title: d.xCol, automargin: true },
         yaxis: { title: d.yCol, automargin: true },
         legend: { orientation: "h", y: 1.12 },
-        paper_bgcolor: "#fff",
-        plot_bgcolor: "#fff"
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
       };
     }
-
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
     setMeta(`Showing ${d.x.length} valid trajectory points ordered by ${d.tCol}.`);
-    if (elSummary) elSummary.textContent = "Plot type B: variable trajectory. GIF export uses a faster canvas loop rather than Plotly re-rendering.";
+    if (elSummary) elSummary.textContent = "Trajectory plot selected. GIF export will move a point along the path.";
   }
 
   function renderCurrentPlot() {
     if (!state.rows.length) {
       Plotly.react(elPlot, [], {
         annotations: [{ text: "Upload a file to begin.", showarrow: false, xref: "paper", yref: "paper", x: 0.5, y: 0.5, font: { size: 18, color: "#6b7280" } }],
-        xaxis: { visible: false },
-        yaxis: { visible: false },
+        xaxis: { visible: false }, yaxis: { visible: false },
         margin: { l: 0, r: 0, t: 10, b: 0 },
-        paper_bgcolor: "#fff",
-        plot_bgcolor: "#fff"
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
       }, { responsive: true, displaylogo: false });
       setMeta("Load a file to preview your plot here.");
       return;
     }
-
     if (elPlotType.value === "shift") renderShiftPlot();
     else renderTrajectoryPlot();
   }
@@ -402,44 +350,11 @@
     elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
   }
 
-
-function getWorkerCount() {
-  const hc = (typeof navigator !== "undefined" && navigator.hardwareConcurrency)
-    ? navigator.hardwareConcurrency
-    : 4;
-  return Math.max(2, Math.min(8, hc));
-}
-
   function getGifModeConfig() {
-  const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
-
-  // gif.js quality: bigger number = faster encoding, lower quality.
-  // The bottleneck here is combining frames into the final GIF, so these presets
-  // prioritize encoder speed much more aggressively in Fast mode.
-  if (mode === "high") {
-    return {
-      mode,
-      width: 640,
-      height: 420,
-      maxFrames: 60,
-      defaultFrames: 24,
-      defaultFps: 8,
-      quality: 12,
-      workers: getWorkerCount()
-    };
+    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
+    if (mode === "high") return { mode, width: 640, height: 420, maxFrames: 60, defaultFrames: 24, defaultFps: 8, quality: 12, workers: Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4)) };
+    return { mode, width: 480, height: 300, maxFrames: 48, defaultFrames: 16, defaultFps: 6, quality: 25, workers: Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4)) };
   }
-
-  return {
-    mode,
-    width: 480,
-    height: 300,
-    maxFrames: 48,
-    defaultFrames: 16,
-    defaultFps: 6,
-    quality: 25,
-    workers: getWorkerCount()
-  };
-}
 
   function syncGifInputsToMode() {
     const cfg = getGifModeConfig();
@@ -452,9 +367,7 @@ function getWorkerCount() {
     if (nPoints <= 1) return [0];
     const steps = Math.max(2, nFrames);
     const out = [];
-    for (let i = 0; i < steps; i++) {
-      out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
-    }
+    for (let i = 0; i < steps; i++) out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
     return Array.from(new Set(out));
   }
 
@@ -505,344 +418,137 @@ function getWorkerCount() {
   }
 
   function renderShiftGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg);
-    const ctx = canvas.getContext("2d");
+    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const pad = { l: 60, r: 24, t: 50, b: 48 };
-    const iw = w - pad.l - pad.r;
-    const ih = h - pad.t - pad.b;
-
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
     const allY = d.yn.concat(d.ynp);
     const [ymin, ymax] = getMinMax(allY);
     const n = Math.max(1, d.yn.length - 1);
     const xMap = (i) => pad.l + (iw * i / n);
-    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin)) * ih;
-
+    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin || 1)) * ih;
     drawBackground(ctx, w, h, `${d.yCol}: y(n) and y(n+${d.skip}) vs ${d.tCol}`);
-
-    // axes
-    ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
-    ctx.stroke();
-
-    // y ticks
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.strokeStyle = "#d1d5db"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ih); ctx.lineTo(pad.l + iw, pad.t + ih); ctx.stroke();
+    ctx.fillStyle = "#6b7280"; ctx.font = "12px Inter, Arial, sans-serif";
     for (let k = 0; k <= 4; k++) {
-      const frac = k / 4;
-      const yy = pad.t + ih - frac * ih;
-      const val = ymin + frac * (ymax - ymin);
-      ctx.strokeStyle = "#f1f5f9";
-      ctx.beginPath();
-      ctx.moveTo(pad.l, yy);
-      ctx.lineTo(pad.l + iw, yy);
-      ctx.stroke();
+      const frac = k / 4, yy = pad.t + ih - frac * ih, val = ymin + frac * (ymax - ymin);
+      ctx.strokeStyle = "#f1f5f9"; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + iw, yy); ctx.stroke();
       ctx.fillText(val.toFixed(3), 8, yy + 4);
     }
-
-    // x labels
-    const idxs = [0, Math.floor(d.t.length / 2), Math.max(0, d.t.length - 1)];
-    idxs.forEach((ii) => {
-      if (!d.t.length) return;
-      const xx = xMap(ii);
-      ctx.fillStyle = "#6b7280";
-      ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12);
-    });
-
-    // full paths light
+    const tickIdx = [0, Math.floor(d.t.length / 2), Math.max(0, d.t.length - 1)];
+    tickIdx.forEach((ii) => { if (!d.t.length) return; const xx = xMap(ii); ctx.fillStyle = "#6b7280"; ctx.fillText(String(d.t[ii]), Math.max(pad.l, xx - 14), h - 12); });
     function drawPath(arr, color, upTo, dash) {
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      if (dash) ctx.setLineDash([8, 5]);
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; if (dash) ctx.setLineDash([8, 5]);
       ctx.beginPath();
       for (let i = 0; i <= upTo; i++) {
-        const xx = xMap(i);
-        const yy = yMap(arr[i]);
-        if (i === 0) ctx.moveTo(xx, yy);
-        else ctx.lineTo(xx, yy);
+        const xx = xMap(i), yy = yMap(arr[i]);
+        if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
       }
-      ctx.stroke();
-      ctx.restore();
+      ctx.stroke(); ctx.restore();
     }
-
-    // background full traces
-    ctx.globalAlpha = 0.18;
-    drawPath(d.yn, "#2563eb", d.yn.length - 1, false);
-    drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true);
-    ctx.globalAlpha = 1;
-
+    ctx.globalAlpha = 0.18; drawPath(d.yn, "#2563eb", d.yn.length - 1, false); drawPath(d.ynp, "#dc2626", d.ynp.length - 1, true); ctx.globalAlpha = 1;
     const activeIdx = Math.max(0, Math.min(idx, d.yn.length - 1));
-    drawPath(d.yn, "#2563eb", activeIdx, false);
-    drawPath(d.ynp, "#dc2626", activeIdx, true);
-
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    const xActive = xMap(activeIdx);
-
-    // moving points
-    ctx.fillStyle = "#2563eb";
-    ctx.beginPath();
-    ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#374151";
-    ctx.font = "600 12px Inter, Arial, sans-serif";
+    drawPath(d.yn, "#2563eb", activeIdx, false); drawPath(d.ynp, "#dc2626", activeIdx, true);
+    const ps = clampInt(elPointSize.value, 4, 24, 11), xActive = xMap(activeIdx);
+    ctx.fillStyle = "#2563eb"; ctx.beginPath(); ctx.arc(xActive, yMap(d.yn[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(xActive, yMap(d.ynp[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#374151"; ctx.font = "600 12px Inter, Arial, sans-serif";
     ctx.fillText(`frame ${activeIdx + 1}/${d.yn.length}`, w - 130, 26);
     ctx.fillText(String(d.t[activeIdx]), w - 130, 44);
-
-    drawSimpleLegend(ctx, [
-      { color: "#2563eb", label: `${d.yCol} (n)` },
-      { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }
-    ], w - 180, 72);
-
+    drawSimpleLegend(ctx, [{ color: "#2563eb", label: `${d.yCol} (n)` }, { color: "#dc2626", label: `${d.yCol} (n+${d.skip})` }], w - 190, 72);
     return canvas;
   }
 
   function renderTrajectory2DGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg);
-    const ctx = canvas.getContext("2d");
+    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const pad = { l: 60, r: 24, t: 50, b: 48 };
-    const iw = w - pad.l - pad.r;
-    const ih = h - pad.t - pad.b;
-    const [xmin, xmax] = getMinMax(d.x);
-    const [ymin, ymax] = getMinMax(d.y);
-    const xMap = (v) => pad.l + ((v - xmin) / (xmax - xmin)) * iw;
-    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin)) * ih;
-
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    const [xmin, xmax] = getMinMax(d.x), [ymin, ymax] = getMinMax(d.y);
+    const xMap = (v) => pad.l + ((v - xmin) / (xmax - xmin || 1)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / (ymax - ymin || 1)) * ih;
     drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
-
-    ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
-    ctx.stroke();
-
-    // light full path
-    ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) {
-      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
-      if (i === 0) ctx.moveTo(xx, yy);
-      else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
+    ctx.strokeStyle = "#d1d5db"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ih); ctx.lineTo(pad.l + iw, pad.t + ih); ctx.stroke();
+    ctx.globalAlpha = 0.18; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) { const xx = xMap(d.x[i]), yy = yMap(d.y[i]); if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); } ctx.stroke(); ctx.globalAlpha = 1;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) {
-      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
-      if (i === 0) ctx.moveTo(xx, yy);
-      else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-
+    ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 3; ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) { const xx = xMap(d.x[i]), yy = yMap(d.y[i]); if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); } ctx.stroke();
     const ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#374151"; ctx.font = "12px Inter, Arial, sans-serif";
     ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
-    ctx.save();
-    ctx.translate(16, h / 2 + 10);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.yCol}`, 0, 0);
-    ctx.restore();
+    ctx.save(); ctx.translate(16, h / 2 + 10); ctx.rotate(-Math.PI / 2); ctx.fillText(`${d.yCol}`, 0, 0); ctx.restore();
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-
     return canvas;
   }
 
   function project3DFactory(xs, ys, zs, width, height) {
-    const [xmin, xmax] = getMinMax(xs);
-    const [ymin, ymax] = getMinMax(ys);
-    const [zmin, zmax] = getMinMax(zs);
-
-    const nx = (v, lo, hi) => (v - lo) / (hi - lo) * 2 - 1;
-
-    const az = Math.PI / 4.3;
-    const el = Math.PI / 8.8;
-
+    const [xmin, xmax] = getMinMax(xs), [ymin, ymax] = getMinMax(ys), [zmin, zmax] = getMinMax(zs);
+    const nx = (v, lo, hi) => ((v - lo) / (hi - lo || 1)) * 2 - 1;
+    const az = Math.PI / 4.3, el = Math.PI / 8.8;
     const pts = xs.map((x, i) => {
-      const X = nx(x, xmin, xmax);
-      const Y = nx(ys[i], ymin, ymax);
-      const Z = nx(zs[i], zmin, zmax);
-
+      const X = nx(x, xmin, xmax), Y = nx(ys[i], ymin, ymax), Z = nx(zs[i], zmin, zmax);
       const xr = Math.cos(az) * X - Math.sin(az) * Y;
       const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
       const yr = Math.cos(el) * yr0 - Math.sin(el) * Z;
-      const zr = Math.sin(el) * yr0 + Math.cos(el) * Z;
-
-      return { x: xr, y: yr, z: zr };
+      return { x: xr, y: yr };
     });
-
     let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
-    pts.forEach((p) => {
-      if (p.x < minPX) minPX = p.x;
-      if (p.x > maxPX) maxPX = p.x;
-      if (p.y < minPY) minPY = p.y;
-      if (p.y > maxPY) maxPY = p.y;
-    });
-
-    const pad = 0.12;
-    const sx = (maxPX - minPX) || 1;
-    const sy = (maxPY - minPY) || 1;
-    minPX -= sx * pad; maxPX += sx * pad;
-    minPY -= sy * pad; maxPY += sy * pad;
-
+    pts.forEach((p) => { minPX = Math.min(minPX, p.x); maxPX = Math.max(maxPX, p.x); minPY = Math.min(minPY, p.y); maxPY = Math.max(maxPY, p.y); });
+    const pad = 0.12, sx = (maxPX - minPX) || 1, sy = (maxPY - minPY) || 1;
+    minPX -= sx * pad; maxPX += sx * pad; minPY -= sy * pad; maxPY += sy * pad;
     return function (i) {
       const p = pts[i];
-      const px = ((p.x - minPX) / (maxPX - minPX)) * (width) ;
-      const py = height - ((p.y - minPY) / (maxPY - minPY)) * (height);
-      return { x: px, y: py };
+      return { x: ((p.x - minPX) / (maxPX - minPX || 1)) * width, y: height - ((p.y - minPY) / (maxPY - minPY || 1)) * height };
     };
   }
 
   function renderTrajectory3DGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg);
-    const ctx = canvas.getContext("2d");
+    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const pad = { l: 24, r: 24, t: 50, b: 24 };
-    const iw = w - pad.l - pad.r;
-    const ih = h - pad.t - pad.b;
-
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
     drawBackground(ctx, w, h, `${d.xCol}–${d.yCol}–${d.zCol} trajectory (3D projection)`);
-
     const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-
-    ctx.save();
-    ctx.translate(pad.l, pad.t);
-
-    // light full path
-    ctx.globalAlpha = 0.15;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) {
-      const p = proj(i);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) {
-      const p = proj(i);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-
-    const point = proj(activeIdx);
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.save(); ctx.translate(pad.l, pad.t);
+    ctx.globalAlpha = 0.15; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) { const p = proj(i); if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); } ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 3; ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) { const p = proj(i); if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); } ctx.stroke();
+    const point = proj(activeIdx), ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillStyle = "#374151"; ctx.font = "12px Inter, Arial, sans-serif";
     ctx.fillText(`3D projected view`, 18, h - 14);
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-
     return canvas;
   }
 
   async function generateGif() {
-    if (!state.rows.length) {
-      setGifStatus("Upload data first before generating a GIF.");
-      return;
-    }
-    if (!window.GIF && !isLocalMode()) {
-      setGifStatus("Browser GIF encoder did not load. Refresh the page and try again.");
-      return;
-    }
+    if (!window.GIF) { setGifStatus("GIF encoder did not load. Refresh the page and try again."); return; }
+    if (!state.rows.length) { setGifStatus("Upload data first before generating a GIF."); return; }
 
-    revokeGifUrl();
-    setGifDownloadEnabled(false);
-    setGifPreview("Generating GIF…");
-    setGifStatus("Preparing GIF…");
-
+    revokeGifUrl(); setGifDownloadEnabled(false); setGifPreview("Generating GIF…"); setGifStatus("Preparing GIF…");
     const cfg = getGifModeConfig();
     const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
     const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
-
-    let frameIndices = [];
-    let drawFrame = null;
-    let outName = "plot_animation.gif";
+    let frameIndices = [], drawFrame = null, outName = "plot_animation.gif";
 
     if (elPlotType.value === "shift") {
       const d = getShiftData();
-      if (d.yn.length < 2) {
-        setGifStatus("Need at least two valid aligned shifted-frame points for GIF export.");
-        return;
-      }
+      if (d.yn.length < 2) { setGifStatus("Need at least two valid shifted-time points for GIF export."); return; }
       frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
       drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
       outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_shifted_time.gif`;
     } else {
       const d = getTrajectoryData();
-      if (d.x.length < 2) {
-        setGifStatus("Need at least two valid trajectory points for GIF export.");
-        return;
-      }
+      if (d.x.length < 2) { setGifStatus("Need at least two valid trajectory points for GIF export."); return; }
       frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
-      if (d.mode === "3d") drawFrame = (idx) => renderTrajectory3DGifFrame(d, idx, cfg);
-      else drawFrame = (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
-      outName = `${(d.mode === "3d" ? "trajectory3d" : "trajectory2d")}.gif`;
-    }
-
-    const frameCanvases = [];
-    for (let i = 0; i < frameIndices.length; i++) {
-      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
-      frameCanvases.push(drawFrame(frameIndices[i]));
-      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-
-    if (isLocalMode()) {
-      const ok = await checkLocalHelper();
-      if (!ok) {
-        setGifStatus("Local helper is not running. Start it in your terminal, then try again, or switch back to Browser encoder.");
-        return;
-      }
-      try {
-        setGifStatus("Sending frames to local helper for GIF assembly…");
-        const blob = await encodeGifLocally(frameCanvases, fps, outName);
-        state.gifUrl = URL.createObjectURL(blob);
-        setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
-        setGifDownloadEnabled(true, state.gifUrl, outName);
-        setGifStatus(`GIF ready (Local terminal helper). ${frameIndices.length} frames at ${fps} fps.`);
-      } catch (err) {
-        console.error(err);
-        setGifStatus(`Local helper failed: ${err.message || err}`);
-        setGifDownloadEnabled(false);
-      }
-      return;
+      drawFrame = d.mode === "3d" ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg) : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
+      outName = d.mode === "3d" ? "trajectory3d.gif" : "trajectory2d.gif";
     }
 
     const delay = Math.max(40, Math.round(1000 / fps));
@@ -854,16 +560,18 @@ function getWorkerCount() {
       workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
     });
 
-    for (let i = 0; i < frameCanvases.length; i++) {
-      gif.addFrame(frameCanvases[i], { delay, copy: true });
+    for (let i = 0; i < frameIndices.length; i++) {
+      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
+      const canvas = drawFrame(frameIndices[i]);
+      gif.addFrame(canvas, { delay, copy: true });
       if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    setGifStatus(`Encoding GIF in browser with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}…`);
+    setGifStatus(`Encoding GIF with ${cfg.workers} workers…`);
 
     gif.on("progress", (p) => {
       const pct = Math.max(1, Math.min(100, Math.round(p * 100)));
-      setGifStatus(`Encoding GIF in browser with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}… ${pct}%`);
+      setGifStatus(`Encoding GIF with ${cfg.workers} workers… ${pct}%`);
     });
 
     gif.on("finished", (blob) => {
@@ -871,7 +579,7 @@ function getWorkerCount() {
       state.gifUrl = URL.createObjectURL(blob);
       setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
       setGifDownloadEnabled(true, state.gifUrl, outName);
-      setGifStatus(`GIF ready (Browser encoder, ${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps, encoded with ${cfg.workers} worker${cfg.workers > 1 ? "s" : ""}.`);
+      setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
     });
 
     gif.on("abort", () => {
@@ -888,16 +596,14 @@ function getWorkerCount() {
     renderCurrentPlot();
   }
 
-  // Events
   elFile.addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     setLoadStatus(`Reading ${file.name}…`);
-    try {
-      await loadWorkbookFromFile(file);
-    } catch (err) {
+    try { await loadWorkbookFromFile(file); }
+    catch (err) {
       console.error(err);
-      setLoadStatus("Could not read that file. Please try an Excel or CSV file.");
+      setLoadStatus("Could not read that file. Try the example Excel first, then match your file to that format.");
     }
   });
 
@@ -906,9 +612,7 @@ function getWorkerCount() {
   [elPlotType, elTimeShift, elShiftVar, elSkip, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
-    el.addEventListener("input", () => {
-      if (el === elSkip || el === elPointSize) renderCurrentPlot();
-    });
+    el.addEventListener("input", () => { if (el === elSkip || el === elPointSize) renderCurrentPlot(); });
   });
 
   if (elFrames) elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
@@ -920,19 +624,10 @@ function getWorkerCount() {
       syncGifInputsToMode();
     });
   }
-  if (elEncoderMode) {
-    elEncoderMode.addEventListener("change", () => {
-      if (isLocalMode()) checkLocalHelper();
-      else setLocalHelperStatus(`Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.`);
-    });
-  }
   if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
 
-  // Init
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
-  if (elEncoderMode && isLocalMode()) checkLocalHelper();
-  else setLocalHelperStatus(`Local helper mode requires running <code>tool3_local_encoder.py</code> on your computer at <code>127.0.0.1:8765</code>. This keeps the fast frame generation in the page, but offloads the slow GIF assembly step to your local terminal.`);
   renderCurrentPlot();
 })();
