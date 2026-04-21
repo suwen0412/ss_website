@@ -190,7 +190,7 @@
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a built-in lightweight encoder so it does not get stuck on one long external GIF assembly step.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a fully local browser-side encoder, so it does not depend on an external GIF worker script.</div>
             </div>
           </div>
         </div>
@@ -210,7 +210,7 @@
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">No coding needed: upload → choose columns → preview → generate → download. Progress now moves frame-by-frame while the browser writes the GIF directly.</div>
+                  <div class="tool3-note" style="margin-top:10px;">No coding needed: upload → choose columns → preview → generate → download. Progress moves frame-by-frame while the browser writes the GIF directly in the page.</div>
                 </div>
                 <div>
                   <p style="margin-top:0;"><strong>Simple tips</strong></p>
@@ -231,7 +231,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.js"></script>
   <script src="assets/js/tool3.js"></script>
 </body>
 </html>

@@ -864,6 +864,11 @@
       return;
     }
 
+    if (elMakeGif) {
+      elMakeGif.disabled = true;
+      elMakeGif.textContent = "Generating…";
+    }
+
     revokeGifUrl();
     setGifDownloadEnabled(false);
     setGifPreview("Generating GIF…");
@@ -881,6 +886,7 @@
       const d = getShiftData();
       if (d.yn.length < 2) {
         setGifStatus("Need at least two valid shifted-time points for GIF export.");
+        if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
         return;
       }
       frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
@@ -890,6 +896,7 @@
       const d = getTrajectoryData();
       if (d.x.length < 2) {
         setGifStatus("Need at least two valid trajectory points for GIF export.");
+        if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
         return;
       }
       frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
@@ -911,23 +918,18 @@
 
     let blob;
     try {
-      if (window.GIF) {
-        blob = await encodeAnimatedGifWithGifJs(frameCanvases, cfg, fps, (ratio) => {
-          const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-          setGifStatus(`Writing GIF file… ${pct}%`);
-        });
-      } else {
-        const delayCs = Math.max(2, Math.round(100 / fps));
-        blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
-          if (i % 2 === 0 || i === total - 1) {
-            setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
-          }
-        });
-      }
+      const delayCs = Math.max(2, Math.round(100 / fps));
+      blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
+        if (i % 2 === 0 || i === total - 1) {
+          setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
+        }
+      });
     } catch (err) {
       console.error(err);
+      const reason = err && err.message ? ` Reason: ${err.message}` : "";
       setGifPreview("GIF export failed. Please try Fast mode or fewer frames.");
-      setGifStatus("GIF export failed while writing the file.");
+      setGifStatus(`GIF export failed while writing the file.${reason}`);
+      if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
       return;
     }
 
@@ -936,6 +938,10 @@
     setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
     setGifDownloadEnabled(true, state.gifUrl, outName);
     setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
+    if (elMakeGif) {
+      elMakeGif.disabled = false;
+      elMakeGif.textContent = "Generate GIF";
+    }
   }
 
   function handleSheetChange() {
@@ -980,6 +986,6 @@
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
-  setGifStatus("GIF export is available for both plot types. This version uses a reliable browser-side encoder and falls back to the built-in writer if needed.");
+  setGifStatus("GIF export is available for both plot types. This version uses a fully local browser-side encoder so it does not depend on an external worker script.");
   renderCurrentPlot();
 })();

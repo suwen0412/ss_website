@@ -2,7 +2,7 @@
 
 - Carousel uses three local images in `assets/images/`:
   1. `ai_plot.png` (first slide)
-  2. `electrochemistry_figure.png` (second slide)
+  2. `electrochemistry_figure.png` (second slide, updated to the COMSOL simulation vs SEM figure)
   3. `uploaded_figure.png` (third slide)
 
 Deploy on GitHub Pages as usual (Settings → Pages).
