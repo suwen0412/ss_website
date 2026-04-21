@@ -155,14 +155,13 @@
                 </label>
               </div>
 
-              <div class="tool3-grid-3">
+              <div class="tool3-grid-2">
                 <label class="tool3-label">
-                  <span>GIF frames</span>
-                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="60" step="1" value="18" />
-                </label>
-                <label class="tool3-label">
-                  <span>GIF fps</span>
-                  <input class="tool3-number" id="tool3Fps" type="number" min="1" max="20" step="1" value="6" />
+                  <span>GIF quality mode</span>
+                  <select class="tool3-select" id="tool3GifQuality">
+                    <option value="fast" selected>Fast</option>
+                    <option value="high">High quality</option>
+                  </select>
                 </label>
                 <label class="tool3-label">
                   <span>Moving point size</span>
@@ -170,11 +169,22 @@
                 </label>
               </div>
 
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>GIF frames</span>
+                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="80" step="1" value="18" />
+                </label>
+                <label class="tool3-label">
+                  <span>GIF fps</span>
+                  <input class="tool3-number" id="tool3Fps" type="number" min="1" max="20" step="1" value="6" />
+                </label>
+              </div>
+
               <div class="tool3-actions">
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate trajectory GIF</button>
                 <a class="btn" id="tool3GifDownload" download="trajectory.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
               </div>
-              <div class="tool3-status" id="tool3GifStatus">GIF export is available for the trajectory plot. Use “Fast” for quicker export or “High quality” for smoother/larger output.</div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for the trajectory plot. Use “Fast” for quick export or “High quality” for smoother output.</div>
             </div>
           </div>
         </div>
@@ -199,9 +209,9 @@
                 <div>
                   <p style="margin-top:0;"><strong>How it works</strong></p>
                   <ul class="bullets">
-                    <li>Frame count controls smoothness and file size.</li>
-                    <li>FPS controls playback speed.</li>
-                    <li>2D or 3D trajectory mode is inherited from the current plot.</li>
+                    <li>Fast mode uses smaller output and fewer default frames.</li>
+                    <li>High quality uses a larger canvas and smoother defaults.</li>
+                    <li>3D plots use a padded scene so the full trajectory stays in view better while rotating.</li>
                   </ul>
                 </div>
               </div>
