@@ -401,12 +401,28 @@
 
   function hideGifOutput() {
     if (elGifCard) elGifCard.classList.add("tool3-hidden");
-    if (elGifDownload) elGifDownload.classList.add("tool3-hidden");
+    setGifDownloadEnabled(false);
     setGifStatus("GIF export is available for the trajectory plot.");
   }
 
   function showGifCard() {
     if (elGifCard) elGifCard.classList.remove("tool3-hidden");
+  }
+
+
+  function setGifDownloadEnabled(enabled, href) {
+    if (!elGifDownload) return;
+    if (enabled) {
+      elGifDownload.href = href || "#";
+      elGifDownload.removeAttribute("aria-disabled");
+      elGifDownload.style.pointerEvents = "";
+      elGifDownload.style.opacity = "";
+    } else {
+      elGifDownload.href = "#";
+      elGifDownload.setAttribute("aria-disabled", "true");
+      elGifDownload.style.pointerEvents = "none";
+      elGifDownload.style.opacity = ".55";
+    }
   }
 
   function revokeGifUrl() {
@@ -555,6 +571,7 @@
       }
     } catch (err) {
       console.error(err);
+      setGifDownloadEnabled(false);
       setGifStatus("GIF frame rendering failed. Try fewer frames or switch to 2D mode.");
       document.body.removeChild(offscreen);
       return;
@@ -573,6 +590,7 @@
       },
       function (obj) {
         if (!obj || obj.error || !obj.image) {
+          setGifDownloadEnabled(false);
           setGifStatus("GIF encoding failed in the browser.");
           return;
         }
@@ -583,10 +601,7 @@
         if (elGifPreview) {
           elGifPreview.innerHTML = `<img src="${obj.image}" alt="Trajectory GIF preview" />`;
         }
-        if (elGifDownload) {
-          elGifDownload.href = obj.image;
-          elGifDownload.classList.remove("tool3-hidden");
-        }
+        setGifDownloadEnabled(true, obj.image);
         setGifStatus(`GIF ready. ${images.length} frames at ${fps} fps.`);
       }
     );
@@ -630,5 +645,6 @@
 
   // ---- Initial placeholder ----
   updatePanels();
+  setGifDownloadEnabled(false);
   renderCurrentPlot();
 })();
