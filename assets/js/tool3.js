@@ -9,6 +9,7 @@
   const elTimeShift = $("tool3TimeShift");
   const elShiftVar = $("tool3ShiftVar");
   const elSkip = $("tool3Skip");
+  const elLagMode = $("tool3LagMode");
   const elTimeTraj = $("tool3TimeTraj");
   const elMode = $("tool3Mode");
   const elX = $("tool3X");
@@ -20,9 +21,17 @@
   const elFps = $("tool3Fps");
   const elPointSize = $("tool3PointSize");
   const elMakeGif = $("tool3MakeGif");
+  const elFramesZipBtn = $("tool3FramesZipBtn");
+  const elFramesZipDownload = $("tool3FramesZipDownload");
   const elGifDownload = $("tool3GifDownload");
   const elGifStatus = $("tool3GifStatus");
   const elGifPreview = $("tool3GifPreview");
+  const elMergeZipFile = $("tool3MergeZipFile");
+  const elMergeFps = $("tool3MergeFps");
+  const elMergeGifBtn = $("tool3MergeGifBtn");
+  const elMergeGifDownload = $("tool3MergeGifDownload");
+  const elMergeStatus = $("tool3MergeStatus");
+  const elMergePreview = $("tool3MergePreview");
   const elLoadStatus = $("tool3LoadStatus");
   const elSummary = $("tool3Summary");
   const elPlot = $("tool3Plot");
@@ -37,7 +46,9 @@
     headers: [],
     rows: [],
     numericHeaders: [],
-    gifUrl: ""
+    gifUrl: "",
+    frameZipUrl: "",
+    mergeGifUrl: ""
   };
 
   function safeText(v) {
@@ -71,27 +82,60 @@
   function setMeta(msg) { if (elMeta) elMeta.textContent = msg; }
   function setGifPreview(html) { if (elGifPreview) elGifPreview.innerHTML = html; }
 
-  function setGifDownloadEnabled(enabled, href, filename) {
-    if (!elGifDownload) return;
+  function setDownloadLink(linkEl, enabled, href, filename) {
+    if (!linkEl) return;
     if (enabled) {
-      elGifDownload.href = href || "#";
-      if (filename) elGifDownload.download = filename;
-      elGifDownload.removeAttribute("aria-disabled");
-      elGifDownload.style.pointerEvents = "";
-      elGifDownload.style.opacity = "";
+      linkEl.href = href || "#";
+      if (filename) linkEl.download = filename;
+      linkEl.removeAttribute("aria-disabled");
+      linkEl.style.pointerEvents = "";
+      linkEl.style.opacity = "";
     } else {
-      elGifDownload.href = "#";
-      elGifDownload.setAttribute("aria-disabled", "true");
-      elGifDownload.style.pointerEvents = "none";
-      elGifDownload.style.opacity = ".55";
+      linkEl.href = "#";
+      linkEl.setAttribute("aria-disabled", "true");
+      linkEl.style.pointerEvents = "none";
+      linkEl.style.opacity = ".55";
     }
   }
 
+  function setGifDownloadEnabled(enabled, href, filename) {
+    setDownloadLink(elGifDownload, enabled, href, filename);
+  }
+
+  function setFramesZipDownloadEnabled(enabled, href, filename) {
+    setDownloadLink(elFramesZipDownload, enabled, href, filename);
+  }
+
+  function setMergeGifDownloadEnabled(enabled, href, filename) {
+    setDownloadLink(elMergeGifDownload, enabled, href, filename);
+  }
+
+  function revokeObjectUrl(key) {
+    if (state[key] && state[key].startsWith("blob:")) URL.revokeObjectURL(state[key]);
+    state[key] = "";
+  }
+
   function revokeGifUrl() {
-    if (state.gifUrl && state.gifUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(state.gifUrl);
-    }
-    state.gifUrl = "";
+    revokeObjectUrl("gifUrl");
+  }
+
+  function revokeFrameZipUrl() {
+    revokeObjectUrl("frameZipUrl");
+  }
+
+  function revokeMergeGifUrl() {
+    revokeObjectUrl("mergeGifUrl");
+  }
+
+  function setMergeStatus(msg) { if (elMergeStatus) elMergeStatus.textContent = msg; }
+  function setMergePreview(html) { if (elMergePreview) elMergePreview.innerHTML = html; }
+
+  function isLag3D() {
+    return !!(elLagMode && elLagMode.value === "3d");
+  }
+
+  function yieldToUi() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
   function uniqueHeaders(row0) {
@@ -285,6 +329,25 @@
 
   function renderShiftPlot() {
     const d = getLagData();
+    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
+    if (isLag3D()) {
+      const traces = [
+        { x: d.x, y: d.y, z: d.t, type: "scatter3d", mode: "lines", name: "Lag path", line: { width: 4 } },
+        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.t.length ? [d.t[d.t.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
+      ];
+      const layout = {
+        title: `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`,
+        margin: { l: 10, r: 10, t: 56, b: 10 },
+        scene: build3DScene(`${d.yCol}(n)`, `${d.yCol}(n+${d.skip})`, d.tCol),
+        legend: { orientation: "h", y: 1.06 },
+        paper_bgcolor: "#fff"
+      };
+      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}.`);
+      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export will animate x=variable(n), y=variable(n+skip), z=time.";
+      return;
+    }
+
     const traces = [
       {
         x: d.x,
@@ -301,7 +364,7 @@
         type: "scatter",
         mode: "markers",
         name: "Current point",
-        marker: { size: Math.max(7, clampInt(elPointSize.value, 4, 24, 11)) }
+        marker: { size: Math.max(7, pointSize) }
       }
     ];
     const diagMin = Math.min(...d.x, ...d.y);
@@ -327,7 +390,7 @@
     };
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
     setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}.`);
-    if (elSummary) elSummary.textContent = "Lag plot selected. GIF export animates variable(n) versus variable(n+skip) in time order.";
+    if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export animates variable(n) versus variable(n+skip) in time order.";
   }
 
   function renderTrajectoryPlot() {
@@ -562,6 +625,57 @@
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
     ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 160, 44);
 
+    return canvas;
+  }
+
+
+  function renderLag3DGifFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 24, r: 24, t: 50, b: 24 };
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+
+    drawBackground(ctx, w, h, `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`);
+    const proj = project3DFactory(d.x, d.y, d.t, iw, ih);
+    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+
+    ctx.save();
+    ctx.translate(pad.l, pad.t);
+
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    const point = proj(activeIdx);
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`x = ${d.yCol}(n)`, 18, h - 34);
+    ctx.fillText(`y = ${d.yCol}(n+${d.skip})`, 18, h - 18);
+    ctx.fillText(`z = ${d.tCol}`, 180, h - 18);
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
     return canvas;
   }
 
@@ -905,6 +1019,170 @@
     return new Blob([out], { type: "image/gif" });
   }
 
+  function collectAnimationSpec() {
+    const cfg = getGifModeConfig();
+    const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
+    const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
+    let frameIndices = [];
+    let drawFrame = null;
+    let outName = "plot_animation.gif";
+
+    if (elPlotType.value === "shift") {
+      const d = getLagData();
+      if (d.x.length < 2) throw new Error("Need at least two valid lag-plot points for export.");
+      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
+      drawFrame = isLag3D() ? (idx) => renderLag3DGifFrame(d, idx, cfg) : (idx) => renderShiftGifFrame(d, idx, cfg);
+      outName = isLag3D() ? `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag3d.gif` : `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag_plot.gif`;
+    } else {
+      const d = getTrajectoryData();
+      if (d.x.length < 2) throw new Error("Need at least two valid trajectory points for export.");
+      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
+      drawFrame = d.mode === "3d" ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg) : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
+      outName = d.mode === "3d" ? "trajectory3d.gif" : "trajectory2d.gif";
+    }
+
+    return { cfg, fps, frameIndices, drawFrame, outName };
+  }
+
+  function canvasToPngBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not encode PNG frame.")), "image/png");
+    });
+  }
+
+  async function buildFrameCanvases(spec, statusPrefix) {
+    const frameCanvases = [];
+    for (let i = 0; i < spec.frameIndices.length; i++) {
+      setGifStatus(`${statusPrefix} ${i + 1} of ${spec.frameIndices.length}…`);
+      frameCanvases.push(spec.drawFrame(spec.frameIndices[i]));
+      await yieldToUi();
+    }
+    return frameCanvases;
+  }
+
+  async function downloadFramesZip() {
+    if (!state.rows.length) {
+      setGifStatus("Upload data first before exporting frames.");
+      return;
+    }
+    if (!window.JSZip) {
+      setGifStatus("Frame ZIP export needs JSZip. Please refresh the page and try again.");
+      return;
+    }
+    if (elFramesZipBtn) {
+      elFramesZipBtn.disabled = true;
+      elFramesZipBtn.textContent = "Building ZIP…";
+    }
+    revokeFrameZipUrl();
+    setFramesZipDownloadEnabled(false);
+    try {
+      const spec = collectAnimationSpec();
+      const zip = new window.JSZip();
+      const digits = Math.max(3, String(spec.frameIndices.length).length);
+      for (let i = 0; i < spec.frameIndices.length; i++) {
+        setGifStatus(`Rendering PNG frame ${i + 1} of ${spec.frameIndices.length}…`);
+        const canvas = spec.drawFrame(spec.frameIndices[i]);
+        const blob = await canvasToPngBlob(canvas);
+        const name = `frame_${String(i + 1).padStart(digits, "0")}.png`;
+        zip.file(name, blob);
+        await yieldToUi();
+      }
+      setGifStatus("Compressing frame ZIP…");
+      const zipBlob = await zip.generateAsync({ type: "blob" }, (meta) => {
+        setGifStatus(`Compressing frame ZIP… ${Math.round(meta.percent || 0)}%`);
+      });
+      state.frameZipUrl = URL.createObjectURL(zipBlob);
+      const base = spec.outName.replace(/\.gif$/i, "");
+      const zipName = `${base}_frames.zip`;
+      setFramesZipDownloadEnabled(true, state.frameZipUrl, zipName);
+      setGifStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created.`);
+      if (elFramesZipDownload) elFramesZipDownload.click();
+    } catch (err) {
+      console.error(err);
+      setGifStatus(err && err.message ? err.message : "Could not export frame ZIP.");
+    } finally {
+      if (elFramesZipBtn) {
+        elFramesZipBtn.disabled = false;
+        elFramesZipBtn.textContent = "Download Frames ZIP";
+      }
+    }
+  }
+
+  function blobToImage(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read one of the frame images.")); };
+      img.src = url;
+    });
+  }
+
+  async function mergeFramesZipToGif() {
+    const file = elMergeZipFile && elMergeZipFile.files && elMergeZipFile.files[0];
+    if (!file) {
+      setMergeStatus("Choose a ZIP file containing PNG or JPG frames first.");
+      return;
+    }
+    if (!window.JSZip) {
+      setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
+      return;
+    }
+    if (elMergeGifBtn) {
+      elMergeGifBtn.disabled = true;
+      elMergeGifBtn.textContent = "Merging…";
+    }
+    revokeMergeGifUrl();
+    setMergeGifDownloadEnabled(false);
+    setMergePreview("Reading frame ZIP…");
+    try {
+      const zip = await window.JSZip.loadAsync(file);
+      const entries = Object.values(zip.files)
+        .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
+      setMergeStatus(`Reading ${entries.length} frame images…`);
+      const images = [];
+      for (let i = 0; i < entries.length; i++) {
+        const blob = await entries[i].async("blob");
+        images.push(await blobToImage(blob));
+        setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
+        await yieldToUi();
+      }
+      const width = images[0].naturalWidth || images[0].width;
+      const height = images[0].naturalHeight || images[0].height;
+      const canvases = images.map((img) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas;
+      });
+      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 6);
+      const delayCs = Math.max(2, Math.round(100 / fps));
+      setMergeStatus("Writing merged GIF…");
+      const blob = encodeAnimatedGif(canvases, width, height, delayCs, (i, total) => {
+        if (i % 2 === 0 || i === total - 1) setMergeStatus(`Writing merged GIF… ${i + 1}/${total}`);
+      });
+      state.mergeGifUrl = URL.createObjectURL(blob);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
+      setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
+    } catch (err) {
+      console.error(err);
+      setMergePreview("Could not merge that frame ZIP.");
+      setMergeStatus(err && err.message ? err.message : "Could not merge frame ZIP into GIF.");
+    } finally {
+      if (elMergeGifBtn) {
+        elMergeGifBtn.disabled = false;
+        elMergeGifBtn.textContent = "Create GIF from ZIP";
+      }
+    }
+  }
+
   async function generateGif() {
     if (!state.rows.length) {
       setGifStatus("Upload data first before generating a GIF.");
@@ -921,73 +1199,31 @@
     setGifPreview("Generating GIF…");
     setGifStatus("Preparing frames…");
 
-    const cfg = getGifModeConfig();
-    const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
-    const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
-
-    let frameIndices = [];
-    let drawFrame = null;
-    let outName = "plot_animation.gif";
-
-    if (elPlotType.value === "shift") {
-      const d = getLagData();
-      if (d.yn.length < 2) {
-        setGifStatus("Need at least two valid lag-plot points for GIF export.");
-        if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
-        return;
-      }
-      frameIndices = buildFrameIndices(d.yn.length, Math.min(nFramesInput, d.yn.length));
-      drawFrame = (idx) => renderShiftGifFrame(d, idx, cfg);
-      outName = `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag_plot.gif`;
-    } else {
-      const d = getTrajectoryData();
-      if (d.x.length < 2) {
-        setGifStatus("Need at least two valid trajectory points for GIF export.");
-        if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
-        return;
-      }
-      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
-      drawFrame = d.mode === "3d"
-        ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg)
-        : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
-      outName = d.mode === "3d" ? "trajectory3d.gif" : "trajectory2d.gif";
-    }
-
-    const frameCanvases = [];
-    for (let i = 0; i < frameIndices.length; i++) {
-      setGifStatus(`Drawing frame ${i + 1} of ${frameIndices.length}…`);
-      frameCanvases.push(drawFrame(frameIndices[i]));
-      if (i % 4 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-
-    setGifStatus("Writing GIF file…");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    let blob;
     try {
-      const delayCs = Math.max(2, Math.round(100 / fps));
-      blob = encodeAnimatedGif(frameCanvases, cfg.width, cfg.height, delayCs, (i, total) => {
+      const spec = collectAnimationSpec();
+      const frameCanvases = await buildFrameCanvases(spec, "Drawing frame");
+      setGifStatus("Writing GIF file…");
+      await yieldToUi();
+      const delayCs = Math.max(2, Math.round(100 / spec.fps));
+      const blob = encodeAnimatedGif(frameCanvases, spec.cfg.width, spec.cfg.height, delayCs, (i, total) => {
         if (i % 2 === 0 || i === total - 1) {
           setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
         }
       });
+      state.gifUrl = URL.createObjectURL(blob);
+      setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
+      setGifDownloadEnabled(true, state.gifUrl, spec.outName);
+      setGifStatus(`GIF ready (${spec.cfg.mode === "high" ? "High quality" : "Fast"}). ${spec.frameIndices.length} frames at ${spec.fps} fps.`);
     } catch (err) {
       console.error(err);
-      const reason = err && err.message ? ` Reason: ${err.message}` : "";
-      setGifPreview("GIF export failed. Please try Fast mode or fewer frames.");
-      setGifStatus(`GIF export failed while writing the file.${reason}`);
-      if (elMakeGif) { elMakeGif.disabled = false; elMakeGif.textContent = "Generate GIF"; }
-      return;
-    }
-
-    revokeGifUrl();
-    state.gifUrl = URL.createObjectURL(blob);
-    setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
-    setGifDownloadEnabled(true, state.gifUrl, outName);
-    setGifStatus(`GIF ready (${cfg.mode === "high" ? "High quality" : "Fast"}). ${frameIndices.length} frames at ${fps} fps.`);
-    if (elMakeGif) {
-      elMakeGif.disabled = false;
-      elMakeGif.textContent = "Generate GIF";
+      const reason = err && err.message ? err.message : "GIF export failed.";
+      setGifPreview("GIF export failed. Try the frame ZIP workflow below, then merge the ZIP back into a GIF.");
+      setGifStatus(reason);
+    } finally {
+      if (elMakeGif) {
+        elMakeGif.disabled = false;
+        elMakeGif.textContent = "Generate GIF";
+      }
     }
   }
 
@@ -1011,7 +1247,7 @@
 
   elSheet.addEventListener("change", handleSheetChange);
 
-  [elPlotType, elTimeShift, elShiftVar, elSkip, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
+  [elPlotType, elTimeShift, elShiftVar, elSkip, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
     if (!el) return;
     el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
     el.addEventListener("input", () => {
@@ -1029,10 +1265,15 @@
     });
   }
   if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
+  if (elFramesZipBtn) elFramesZipBtn.addEventListener("click", downloadFramesZip);
+  if (elMergeGifBtn) elMergeGifBtn.addEventListener("click", mergeFramesZipToGif);
 
   updatePanels();
   syncGifInputsToMode();
   setGifDownloadEnabled(false);
-  setGifStatus("GIF export is available for both plot types. This version uses a fully local browser-side encoder, and the lag-plot mode now matches the example workbook format: variable(n) vs variable(n+skip).");
+  setFramesZipDownloadEnabled(false);
+  setMergeGifDownloadEnabled(false);
+  setGifStatus("GIF export is available for both plot types. If GIF generation is slow, use Download Frames ZIP first, then merge the ZIP into a GIF in the new block below.");
+  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
   renderCurrentPlot();
 })();

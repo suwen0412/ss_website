@@ -62,7 +62,7 @@
           <h1>Easy GIF Maker for Time-Series Data</h1>
           <p>
             This version is designed to be as simple as possible. Upload your Excel or CSV file, pick the sheet,
-            choose one plot type, preview it, then click <strong>Generate GIF</strong>.
+            choose one plot type, preview it, then either generate the GIF directly or export the frame ZIP first for a faster workflow.
           </p>
         </div>
         <div class="tool3-actions">
@@ -109,20 +109,29 @@
 
           <div class="tool3-panel" id="tool3ShiftPanel">
             <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">3A</span>Shifted-time settings</h3>
+              <h3 style="margin-top:0;"><span class="tool3-step">3A</span>Lag-plot settings</h3>
               <label class="tool3-label">
                 <span>Time column</span>
                 <select class="tool3-select" id="tool3TimeShift"></select>
               </label>
-              <label class="tool3-label">
-                <span>Variable</span>
-                <select class="tool3-select" id="tool3ShiftVar"></select>
-              </label>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Variable</span>
+                  <select class="tool3-select" id="tool3ShiftVar"></select>
+                </label>
+                <label class="tool3-label">
+                  <span>Lag plot mode</span>
+                  <select class="tool3-select" id="tool3LagMode">
+                    <option value="2d" selected>2D lag plot</option>
+                    <option value="3d">3D lag plot (z = time)</option>
+                  </select>
+                </label>
+              </div>
               <label class="tool3-label">
                 <span>Skip (frames)</span>
                 <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
               </label>
-              <div class="tool3-note">The GIF will animate a lag plot: variable(n) versus variable(n+skip), which matches the example workbook.</div>
+              <div class="tool3-note">The lag-plot GIF can now be 2D, or 3D with x = variable(n), y = variable(n+skip), and z = time.</div>
             </div>
           </div>
 
@@ -188,7 +197,9 @@
               </div>
               <div class="tool3-actions">
                 <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
+                <button class="btn" id="tool3FramesZipBtn" type="button">Download Frames ZIP</button>
                 <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
+                <a class="btn" id="tool3FramesZipDownload" download="plot_frames.zip" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download Frames ZIP file</a>
               </div>
               <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a fully local browser-side encoder, and the lag-plot option now matches the example workbook format.</div>
             </div>
@@ -210,19 +221,47 @@
               <div class="tool3-gif-wrap">
                 <div>
                   <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">No coding needed: upload → choose columns → preview → generate → download. Progress moves frame-by-frame while the browser writes the GIF directly in the page.</div>
+                  <div class="tool3-note" style="margin-top:10px;">Fast path: export PNG frames as a ZIP first. Then use the merge block below to convert that ZIP into a GIF online.</div>
                 </div>
                 <div>
                   <p style="margin-top:0;"><strong>Simple tips</strong></p>
                   <ul class="bullets">
-                    <li>For the example workbook, try the lag-plot option first.</li>
-                    <li>Use fewer frames if your dataset is very long.</li>
-                    <li>The example Excel shows the expected column layout.</li>
+                    <li>For the example workbook, try 2D lag plot first, or 3D lag plot if you want z = time.</li>
+                    <li>If direct GIF generation feels slow, use Download Frames ZIP first.</li>
+                    <li>You can merge a ZIP of rendered frames into a GIF in the block below.</li>
                   </ul>
                 </div>
               </div>
             </div>
           </div>
+
+          <div class="tool3-panel" id="tool3MergeCard">
+            <div class="card">
+              <h3 style="margin-top:0;">Merge a frame ZIP into a GIF</h3>
+              <div class="tool3-gif-wrap">
+                <div>
+                  <div class="tool3-gif-preview" id="tool3MergePreview">Upload a ZIP of PNG or JPG frames to preview the merged GIF here.</div>
+                  <div class="tool3-note" style="margin-top:10px;">Use this after downloading the frame ZIP. You can also upload your own ZIP of rendered frames.</div>
+                </div>
+                <div>
+                  <label class="tool3-label">
+                    <span>Frame ZIP file</span>
+                    <input class="tool3-input" id="tool3MergeZipFile" type="file" accept=".zip" />
+                  </label>
+                  <label class="tool3-label">
+                    <span>FPS</span>
+                    <input class="tool3-number" id="tool3MergeFps" type="number" min="1" max="20" step="1" value="6" />
+                  </label>
+                  <div class="tool3-actions">
+                    <button class="btn primary" id="tool3MergeGifBtn" type="button">Create GIF from ZIP</button>
+                    <a class="btn" id="tool3MergeGifDownload" download="merged_frames.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download merged GIF</a>
+                  </div>
+                  <div class="tool3-status" id="tool3MergeStatus">Upload a ZIP of PNG or JPG frames to merge them into a GIF here.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -231,6 +270,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="assets/js/tool3.js"></script>
 </body>
 </html>
