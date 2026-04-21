@@ -334,3 +334,8 @@ body.tool2-float-dragging{
   flex-wrap: wrap;
   gap: 10px;
 }
+
+
+/* Tool 3 page helpers */
+.tool3-chip strong{ font-weight:700; }
+.tool3-preview{ margin-top: 4px; }
