@@ -358,6 +358,7 @@ body.tool2-float-dragging{
 .slide{ height:560px; }
 .slide img{ width:100%; height:100%; object-fit:contain; }
 @media (max-width: 900px){ .hero-grid{ grid-template-columns:1fr; } .slide{ height:380px; } }
+<<<<<<< HEAD
 
 
 /* Final fix: keep the hero block size stable and make the image fill that block */
@@ -389,3 +390,5 @@ body.tool2-float-dragging{
   .hero-grid{ grid-template-columns: 1fr; gap: 24px; }
   .hero .carousel{ height: 320px; }
 }
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf

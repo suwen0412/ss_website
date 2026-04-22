@@ -9,7 +9,10 @@
   const elTimeShift = $("tool3TimeShift");
   const elShiftVar = $("tool3ShiftVar");
   const elSkip = $("tool3Skip");
+<<<<<<< HEAD
   const elLagWindow = $("tool3LagWindow");
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   const elLagMode = $("tool3LagMode");
   const elTimeTraj = $("tool3TimeTraj");
   const elMode = $("tool3Mode");
@@ -344,8 +347,13 @@
         paper_bgcolor: "#fff"
       };
       Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+<<<<<<< HEAD
       setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}. GIF frames use a moving window for clearer local structure.`);
       if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export uses a moving window so each frame shows the local lag structure clearly.";
+=======
+      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}.`);
+      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export will animate x=variable(n), y=variable(n+skip), z=time.";
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
       return;
     }
 
@@ -390,8 +398,13 @@
       plot_bgcolor: "#fff"
     };
     Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+<<<<<<< HEAD
     setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}. GIF frames use a moving window for clearer local structure.`);
     if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export uses a moving window of lag points in time order so the local pattern stays visible.";
+=======
+    setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}.`);
+    if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export animates variable(n) versus variable(n+skip) in time order.";
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   }
 
   function renderTrajectoryPlot() {
@@ -479,6 +492,7 @@
     return Array.from(new Set(out));
   }
 
+<<<<<<< HEAD
   function getLagWindowSize(totalPoints) {
     const fallback = Math.min(120, Math.max(5, totalPoints || 120));
     return clampInt(elLagWindow && elLagWindow.value, 5, 5000, fallback);
@@ -490,6 +504,8 @@
     return { start, end };
   }
 
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   function getMinMax(values) {
     let lo = Infinity, hi = -Infinity;
     for (const v of values) {
@@ -588,8 +604,11 @@
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+<<<<<<< HEAD
     const windowSize = getLagWindowSize(d.x.length);
     const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
@@ -603,29 +622,50 @@
     ctx.stroke();
     ctx.restore();
 
+<<<<<<< HEAD
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = "#2563eb";
     for (let i = start; i <= end; i++) {
       ctx.beginPath();
       ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.8, 0, Math.PI * 2);
+=======
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#2563eb";
+    for (let i = 0; i < d.x.length; i++) {
+      ctx.beginPath();
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = "#2563eb";
+<<<<<<< HEAD
     ctx.lineWidth = 2.8;
     ctx.beginPath();
     for (let i = start; i <= end; i++) {
       const xx = xMap(d.x[i]);
       const yy = yMap(d.y[i]);
       if (i === start) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+=======
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const xx = xMap(d.x[i]);
+      const yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     }
     ctx.stroke();
 
     const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
+<<<<<<< HEAD
     ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.6, 0, Math.PI * 2);
+=======
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     ctx.fill();
 
     ctx.fillStyle = "#374151";
@@ -638,7 +678,10 @@
     ctx.restore();
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
     ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 160, 44);
+<<<<<<< HEAD
     ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     return canvas;
   }
@@ -653,12 +696,16 @@
     drawBackground(ctx, w, h, `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`);
     const proj = project3DFactory(d.x, d.y, d.t, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+<<<<<<< HEAD
     const windowSize = getLagWindowSize(d.x.length);
     const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
 
+<<<<<<< HEAD
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = "#2563eb";
     ctx.lineWidth = 2.8;
@@ -666,15 +713,40 @@
     for (let i = start; i <= end; i++) {
       const p = proj(i);
       if (i === start) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+=======
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
 
+<<<<<<< HEAD
+=======
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     const point = proj(activeIdx);
     const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
+<<<<<<< HEAD
     ctx.arc(point.x, point.y, ps * 0.6, 0, Math.PI * 2);
+=======
+    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     ctx.fill();
 
     ctx.restore();
@@ -684,7 +756,10 @@
     ctx.fillText(`y = ${d.yCol}(n+${d.skip})`, 18, h - 18);
     ctx.fillText(`z = ${d.tCol}`, 180, h - 18);
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+<<<<<<< HEAD
     ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
+=======
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     return canvas;
   }
 
@@ -1256,7 +1331,11 @@
 
   elSheet.addEventListener("change", handleSheetChange);
 
+<<<<<<< HEAD
   [elPlotType, elTimeShift, elShiftVar, elSkip, elLagWindow, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
+=======
+  [elPlotType, elTimeShift, elShiftVar, elSkip, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
+>>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     if (!el) return;
     el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
     el.addEventListener("input", () => {
