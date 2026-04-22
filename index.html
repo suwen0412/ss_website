@@ -1,162 +1,312 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Your Name — Research</title>
-  <meta name="description" content="Personal research website for Your Name." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css" />
-</head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Suwen Shi — Research</title>
+<meta content="Personal research website for Suwen Shi." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&amp;display=swap" rel="stylesheet"/>
+<link href="assets/css/style.css" rel="stylesheet">
+<!-- Minimal fallback styles to ensure Teaching shows even without timeline CSS -->
+<style>
+    .teaching-list { margin: 0; padding: 0; list-style: none; }
+    .teaching-item { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; padding: 1rem 0; border-top: 1px solid var(--border, #e5e7eb); }
+    .teaching-item:first-child { border-top: 0; }
+    .teaching-meta { font-weight: 600; opacity: .85; white-space: nowrap; }
+    .teaching-course { margin: 0 0 .25rem; font-size: 1.05rem; }
+    @media (max-width: 640px) {
+      .teaching-item { grid-template-columns: 1fr; }
+      .teaching-meta { margin-bottom: .25rem; }
+    }
+  </style>
+</link></head>
 <body>
-  <header class="site-header">
-    <div class="container nav">
-      <a class="brand" href="#home">Your<span> Name</span></a>
-      <nav>
-        <a href="#home">Home</a>
-        <a href="#research">Research</a>
-        <a href="#publications">Publications</a>
-        <a href="#teaching">Teaching</a>
-        <a href="#news">News</a>
-        <a href="#contact">Contact</a>
-      </nav>
-      <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">☰</button>
-    </div>
-  </header>
+<header class="site-header">
+<div class="container nav">
+<a class="brand" href="#home">Suwen<span> Shi</span></a>
+<nav>
+<a href="#home">Home</a>
+<a href="#research">Research</a>
+<a href="#publications">Publications</a>
+<a href="#teaching">Teaching</a>
+<a href="#news">News</a>
+<a href="#toolkit">Toolkit</a>
+<a href="#contact">Contact</a>
+</nav>
+<button aria-label="Toggle menu" class="menu-toggle" id="menuToggle">☰</button>
+</div>
+</header>
+<main>
+<section class="section hero" id="home">
+<div class="container hero-grid">
+<div class="hero-copy">
+<h1>Chemistry × Data Science</h1>
+<p class="lead" style="font-weight:700;color:#000;font-size:1.1rem;margin:0">
+            Chem is try — the art of transforming matter.<br/>
+            Data is Do, Analyze, Think, Act — the art of transforming meaning.
+          </p>
+<div class="hero-actions">
+<a class="btn primary" href="#research">Explore Research</a>
+<a class="btn" href="#publications">Read Publications</a>
+</div>
+</div>
+<div aria-label="Image carousel" class="carousel">
+<div class="slides">
+<figure class="slide current">
+<img alt="AI-assisted cyclic voltammetry plot" src="assets/images/ai_plot_hero.png"/>
+</figure>
+<figure class="slide">
+<img alt="COMSOL simulation versus SEM comparison plot" src="assets/images/electrochemistry_figure_hero.png"/>
+</figure>
+<figure class="slide">
+<img alt="Uploaded research figure" src="assets/images/uploaded_figure_hero.png"/>
+</figure>
+</div>
+<button aria-label="Previous slide" class="ctrl prev">‹</button>
+<button aria-label="Next slide" class="ctrl next">›</button>
+<div aria-label="Choose slide" class="dots" role="tablist"></div>
+</div>
+</div>
+</section>
+<section class="section" id="research">
+<div class="container narrow">
+<h2>Research</h2>
+<p>I'm mostly focused on the electrochemistry memristor development, the interdisciplinary project involves:</p>
+<ul class="bullets">
+<li>Electrochemistry memristor construction and analysis</li>
+<li>Neural networks, machine learning developments</li>
+<li>Molecular dynamics analysis</li>
+<li>DFT, COMSOL simulation</li>
+</ul>
+<div class="cards">
+<article class="card">
+<h3>Kirchhoff’s law for memristors</h3>
+<p>Extends Kirchhoff’s laws to include memristive elements, capturing the dynamic relationship between voltage, current, and memory-dependent resistance in circuit analysis.</p>
+<a class="card-link" href="#">Project page →</a>
+</article>
+<article class="card">
+<h3>Construct neural network</h3>
+<p>Designs a neural network model to emulate memristor behavior, capturing its nonlinear current–voltage dynamics and memory-dependent resistance for circuit prediction and optimization.</p>
+<a class="card-link" href="#">Project page →</a>
+</article>
+<article class="card">
+<h3>MD simulation and nanopipette simulation</h3>
+<p>Simulates ionic transport and electrochemical behavior in nanopipettes to study nanoscale sensing, flow, and conductance mechanisms.</p>
+<a class="card-link" href="#">Project page →</a>
+</article>
+</div>
+</div>
+</section>
+<section class="section alt" id="publications">
+<div class="container narrow">
+<h2>Publications</h2>
+<p>Selected papers. Full list on <a href="https://scholar.google.com/" rel="noopener" target="_blank">Google Scholar</a>.</p>
+<div aria-live="polite" class="pub-list" id="pubList"></div>
+</div>
+</section>
+<script>
+      // Load publications JSON
+      async function loadPubs() {
+        const list = document.getElementById('pubList');
+        try {
+          const res = await fetch('data/publications.json', { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const pubs = await res.json();
+          list.innerHTML = pubs.map(p => `
+            <article class="pub-item">
+              <h3 class="pub-title">
+                <a href="${p.link}" target="_blank" rel="noopener">${p.title}</a>
+              </h3>
+              <p class="pub-meta">
+                <span class="pub-authors">${p.authors}</span> •
+                <span class="pub-venue">${p.venue}</span> •
+                <span class="pub-year">${p.year}</span>
+              </p>
+            </article>
+          `).join('');
+        } catch (err) {
+          list.innerHTML = `<p class="muted">Could not load publications. Please try again later.</p>`;
+          console.error('Publications load failed:', err);
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadPubs);
+      } else {
+        loadPubs();
+      }
+    </script>
+<style>
+      /* Publications minimal layout */
+      .pub-list { display: grid; gap: 1rem; }
+      .pub-item { padding: 1rem; border: 1px solid #e6e6e6; border-radius: 12px; background: #fff; }
+      .pub-title { margin: 0 0 .25rem; font-size: 1.05rem; }
+      .pub-meta { margin: 0; color: #555; font-size: .95rem; }
+      .muted { color: #666; }
+    </style>
+<!-- Revised Teaching section (robust, semantic, no dependency on .timeline) -->
+<section aria-labelledby="teaching-title" class="section" id="teaching">
+<div class="container narrow">
+<h2 id="teaching-title">Teaching</h2>
+<ul class="teaching-list" role="list">
+<li class="teaching-item">
+<div class="teaching-meta">
+<time datetime="2023-09">Fall 2023</time> – <time datetime="2025-05">Spring 2025</time>
+</div>
+<div class="teaching-content">
+<h3 class="teaching-course">CH101/102/131 — General &amp; Fundamental Chemistry (BU)</h3>
+<p>Stoichiometry, states of matter, acids/bases, equilibrium, and selected chemical systems.</p>
+</div>
+</li>
+<li class="teaching-item">
+<div class="teaching-meta">
+<time datetime="2025-09">Fall 2025</time>
+</div>
+<div class="teaching-content">
+<h3 class="teaching-course">CHEM 4000/6000 — Quantitative Chemical Analysis (GSU)</h3>
+<p>Quantitative analysis, titrations.</p>
+</div>
+</li>
+</ul>
+</div>
+</section>
+<section class="section alt" id="news">
+<div class="container narrow">
+<h2>News</h2>
+<ul class="news">
+<li><strong>Dec, 2024:</strong> Paper accepted by Springer Nature in <em>Chemistry Africa</em>.</li>
+<li><strong>Jul, 2023:</strong> ASP Conference at Maryland.</li>
+<li><strong>Dec, 2019:</strong> Paper accepted by ACS <em>Analytical Chemistry</em>.</li>
+</ul>
+</div>
+</section>
+<section class="section" id="toolkit">
+<div class="container narrow">
+<h2>Toolkit</h2>
+<div class="cards">
+<div class="card">
+<h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
+<p>
+  Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
+  workbook directly in your browser. Your file is processed locally on your device (no upload).
+</p>
+<div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
+<label class="toolkit-label">
+<span>Select a .DTA file</span>
+<input accept=".dta,.DTA,.txt,text/plain" id="dtaFile" type="file"/>
+</label>
+<div class="toolkit-row">
+<label class="toolkit-check">
+<input checked="" id="includeHeaderSheet" type="checkbox"/>
+      Include header/metadata sheet
+    </label>
+</div>
+<div class="actions">
+<button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
+<a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
+</div>
+<p aria-live="polite" class="muted small" id="toolkitStatus">
+    Choose a file to enable conversion.
+  </p>
+<details class="toolkit-details">
+<summary>What will the Excel contain?</summary>
+<ul class="bullets" style="margin-top:.5rem">
+<li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block (e.g., <code>ZCURVE TABLE</code>, <code>CURVE1 TABLE</code>))</li>
+<li><strong>Columns:</strong> exported as-is from the DTA table</li>
+<li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
+</ul>
+</details>
+</div>
+</div>
 
-  <main>
-    <section id="home" class="section hero">
-      <div class="container hero-grid">
-        <div class="hero-copy">
-          <h1>Physics × Network</h1>
-          <p class="lead">The physics of networks, or the network of physics? I study the interplay of complex networks, statistical physics, and quantum information.</p>
-          <div class="hero-actions">
-            <a class="btn primary" href="#research">Explore Research</a>
-            <a class="btn" href="#publications">Read Publications</a>
-          </div>
-        </div>
-        <div class="carousel" aria-label="Image carousel">
-          <div class="slides">
-            <figure class="slide current">
-              <img src="assets/images/ai_plot.png" alt="AI-assisted cyclic voltammetry plot">
-            </figure>
-            <figure class="slide">
-              <img src="assets/images/electrochemistry_figure.png" alt="Electrochemistry schematic">
-            </figure>
-            <figure class="slide">
-              <img src="assets/images/uploaded_figure.png" alt="User provided figure">
-            </figure>
-          </div>
-          <button class="ctrl prev" aria-label="Previous slide">‹</button>
-          <button class="ctrl next" aria-label="Next slide">›</button>
-          <div class="dots" role="tablist" aria-label="Choose slide"></div>
-        </div>
-      </div>
-    </section>
+<div class="card">
+<h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
+<p>
+  Plot custom equations and overlay them with experimental datasets from Excel/CSV.
+  To keep this page uncluttered, the visualizer opens in a separate tab/window.
+  Everything runs locally in your browser (no uploads).
+</p>
+<ul class="bullets">
+  <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
+  <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
+  <li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
+</ul>
+<div class="actions">
+  <a class="btn primary" href="tool2.html" target="_blank" rel="noopener">Open Tool 2 (new window)</a>
+  <a class="btn" href="tool2.html">Open in this tab</a>
+</div>
+<p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
+</div>
 
-    <section id="research" class="section">
-      <div class="container narrow">
-        <h2>Research</h2>
-        <p>I lead an interdisciplinary program exploring:</p>
-        <ul class="bullets">
-          <li>Quantum networks, communication, and computing.</li>
-          <li>Physical/biological networks and their mathematical principles.</li>
-          <li>Statistical physics of complex systems and network metrics.</li>
-          <li>Open quantum systems and open quantum field theories.</li>
-        </ul>
-
-        <div class="cards">
-          <article class="card">
-            <h3>Quantum Network Routing</h3>
-            <p>Optimizing entanglement distribution with non-shortest paths and percolation-inspired strategies.</p>
-            <a class="card-link" href="#">Project page →</a>
-          </article>
-          <article class="card">
-            <h3>Surface Optimization of Physical Networks</h3>
-            <p>Discovering local design principles using geometric constraints and variational methods.</p>
-            <a class="card-link" href="#">Project page →</a>
-          </article>
-          <article class="card">
-            <h3>Metrics for Complex Systems</h3>
-            <p>Robust network metrics connecting topology to dynamics and function.</p>
-            <a class="card-link" href="#">Project page →</a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section id="publications" class="section alt">
-      <div class="container narrow">
-        <h2>Publications</h2>
-        <p>Selected papers. Full list on Google Scholar.</p>
-        <div id="pubList" class="pub-list" aria-live="polite"></div>
-      </div>
-    </section>
-
-    <section id="teaching" class="section">
-      <div class="container narrow">
-        <h2>Teaching</h2>
-        <ul class="timeline">
-          <li>
-            <div class="time">Fall 2025</div>
-            <div class="item">
-              <h3>PHYS 4XXX: Networks in Physics</h3>
-              <p>From graph theory basics to current research problems; projects with real data.</p>
-            </div>
-          </li>
-          <li>
-            <div class="time">Spring 2025</div>
-            <div class="item">
-              <h3>PHYS 5XXX: Quantum Information</h3>
-              <p>Quantum states, channels, and algorithms with an emphasis on communication.</p>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <section id="news" class="section alt">
-      <div class="container narrow">
-        <h2>News</h2>
-        <ul class="news">
-          <li><strong>Sep, 2025:</strong> Our paper on deterministic entanglement transmission appears in <em>J. Phys. Complexity</em>.</li>
-          <li><strong>Aug, 2025:</strong> Presented at NITMB mathbio convergence conference (Chicago!).</li>
-          <li><strong>Mar, 2025:</strong> Nonconvex entanglement monotone in CV quantum networks published in <em>PRA</em>.</li>
-          <li><strong>Mar, 2025:</strong> Nonshortest paths in quantum networks featured in <em>Science Advances</em>.</li>
-        </ul>
-      </div>
-    </section>
-
-    <section id="contact" class="section">
-      <div class="container narrow">
-        <h2>Contact</h2>
-        <div class="contact-grid">
-          <div>
-            <p><strong>Your Name</strong><br>
-            Department / University<br>
-            City, State, Country</p>
-            <p>Email: <a href="mailto:you@example.com">you@example.com</a></p>
-          </div>
-          <form id="contactForm" action="https://formspree.io/f/your-form-id" method="POST">
-            <label>Name<input type="text" name="name" required></label>
-            <label>Email<input type="email" name="email" required></label>
-            <label>Message<textarea name="message" rows="4" required></textarea></label>
-            <button class="btn primary" type="submit">Send</button>
-            <p class="muted small">Form powered by Formspree. Replace the action URL with your endpoint.</p>
-          </form>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="container">
-      <p>© <span id="year"></span> Your Name. Built with a lightweight static template.</p>
-    </div>
-  </footer>
-
-  <script src="assets/js/main.js"></script>
+<div class="card">
+  <h3>Tool 3 — Time-Series Plotter &amp; Trajectory GIF (Online)</h3>
+  <p>
+    Upload an Excel or CSV file in the browser, choose your columns, and make one of two plot types:
+    a lag plot using variable(n) versus variable(n+skip), or a variable trajectory plot in 2D/3D.
+  </p>
+  <ul class="bullets">
+    <li><strong>Upload first:</strong> choose a sheet, then select the time/variable columns</li>
+    <li><strong>Plot type A:</strong> plot <code>variable(n)</code> versus <code>variable(n+skip)</code> as a lag plot</li>
+    <li><strong>Plot type B:</strong> plot variable trajectories in <code>2D</code> or <code>3D</code> and export a moving-point GIF</li>
+  </ul>
+  <div class="actions">
+    <a class="btn primary" href="tool3.html">Open Tool 3 (online)</a>
+    <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
+  </div>
+  <p class="muted small">Everything runs locally in the browser. No server upload is required.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="section" id="contact">
+<div class="container narrow">
+<h2>Contact</h2>
+<div class="contact-grid">
+<div>
+<p><strong>Suwen Shi</strong><br/>
+            Chemistry / Georgia State University<br/>
+            Atlanta, GA, USA</p>
+<p>Email: <a href="mailto:sshi5@gsu.edu">sshi5@gsu.edu</a></p>
+</div>
+<!-- Formspree form -->
+<form action="https://formspree.io/f/mvgwbyyj" id="contactForm" method="POST">
+<label>Name<input name="name" required="" type="text"/></label>
+<label>Email<input name="email" required="" type="email"/></label>
+<label>Message<textarea name="message" required="" rows="4"></textarea></label>
+<input name="_subject" type="hidden" value="New message from suwen-website"/>
+<!-- Replace YOUR-DOMAIN below with your actual domain (no angle brackets) -->
+<input name="_next" type="hidden" value="https://YOUR-DOMAIN/thanks.html"/>
+<button class="btn primary" type="submit">Send</button>
+</form>
+</div>
+</div>
+</section>
+</main>
+<footer class="site-footer">
+<div class="container">
+<p>© <span id="year"></span> Suwen Shi. Built with warm heart for science.</p>
+</div>
+</footer>
+<script>
+    // Footer year
+    (function(){ 
+      var y=document.getElementById('year'); 
+      if(y) y.textContent = new Date().getFullYear(); 
+    })();
+  </script>
+<!-- XLSX (SheetJS) for in-browser Excel export -->
+<script defer="" src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Toolkit converter logic -->
+<script defer="" src="assets/js/toolkit.js"></script>
+<!-- Your site JS (menu, carousel, etc.) -->
+<script src="assets/js/main.js"></script>
+<noscript>
+<style>
+      .carousel .ctrl, .carousel .dots { display: none !important; }
+    </style>
+</noscript>
 </body>
 </html>

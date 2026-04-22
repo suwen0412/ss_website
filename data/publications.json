@@ -1,16 +1,25 @@
 [
   {
-    "title": "Advantage of Deterministic Entanglement Transmission on Gaussian-State Quantum Networks",
-    "authors": "Y. Author, X. YourName",
-    "venue": "Journal of Physics Complexity",
+    "title": "From 2015 to 2023: How Machine Learning Aids Natural Product Analysis",
+    "authors": "Suwen Shi, et al.",
+    "venue": "Chemistry Africa",
     "year": 2025,
-    "link": "https://doi.org/10.1088/2632-072X/ae0971"
+    "link": "https://link.springer.com/article/10.1007/s42250-024-01154-3"
   },
+  
   {
-    "title": "Nonconvex entanglement monotone determining the characteristic length ...",
-    "authors": "Y. Author, X. YourName",
-    "venue": "Physical Review A",
-    "year": 2025,
-    "link": "https://doi.org/10.1103/PhysRevA.111.042429"
+    "title": "Mopir: a machine-learning-oriented data preprocessing pipeline for precise analysis of infrared spectroscopy",
+    "authors": "Ziwei Huang, Xingxin Gu, Suwen Shi, Xiangyi Meng, Junjie Hang, Jianli Lin, Claire Chenwen Zhong, Yu Li, Junjie Huang",
+    "venue": "Research Square (preprint)",
+    "year": 2024,
+    "link": "https://www.researchsquare.com/article/rs-4477355/v1"
+  },
+
+  {
+    "title": "Separation-Free Electrogenerated Chemiluminescence Immunoassay Incorporating Target Assistant Proximity Hybridization and Dynamically Competitive Hybridization of a DNA Signal Probe",
+    "authors": "Bing Wang, Suwen Shi, Xiaolin Yang, Yue Wang, Honglan Qi*, Qiang Gao, and Chengxiao Zhang*",
+    "venue": "Analytical Chemistry",
+    "year": 2019,
+    "link": "https://pubs.acs.org/doi/full/10.1021/acs.analchem.9b03662"
   }
 ]

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tool 2 — Equation + Data Visualizer</title>
+  <meta name="description" content="Online equation and data visualizer (client-side)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  <link href="assets/css/style.css" rel="stylesheet" />
+  <style>
+    body { background: var(--alt); }
+    .toolpage-wrap { padding: 44px 0 64px; }
+    .toolpage-head { display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap:wrap; }
+    .toolpage-head h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); }
+    .toolpage-card { margin-top: 14px; }
+    .toolpage-card .card { padding: 18px; }
+    .top-actions { display:flex; gap: 10px; flex-wrap:wrap; }
+  
+    body.tool2-full .container { width: min(1500px, 96%); }
+    body.tool2-full .toolpage-wrap { padding: 22px 0 28px; }
+    body.tool2-full { overflow-x: auto; }
+    body.tool2-full .toolpage-card .card { padding: 14px; }
+
+
+/* Hard override (Desmos-like): keep controls left, plots right */
+body.tool2-full .tool2-layout{
+  display: grid !important;
+  /* Resizable Desmos-like split: left | splitter | right */
+  grid-template-columns: var(--tool2-left-w, 320px) 12px minmax(0, 1fr) !important;
+  gap: 0 !important;
+  align-items: start !important;
+  min-width: 820px; /* keep plot from collapsing under left; page can scroll horizontally */
+}
+body.tool2-full .tool2-left{
+  position: sticky !important;
+  top: 14px !important;
+  max-height: calc(100vh - 140px) !important;
+  overflow: auto !important;
+}
+body.tool2-full .tool2-right{ min-width: 0 !important; }
+@media (max-width: 360px){
+  body.tool2-full .tool2-layout{ grid-template-columns: 320px minmax(0, 1fr) !important; }
+}
+body.tool2-full .tool2-splitter{
+  grid-column: 2;
+  height: 100%;
+  cursor: col-resize;
+  position: relative;
+}
+body.tool2-full .tool2-splitter:before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(0,0,0,.18);
+}
+body.tool2-full .tool2-splitter:hover:before{
+  background: rgba(0,0,0,.32);
+}
+body.tool2-full .tool2-right{
+  grid-column: 3;
+  min-width: 0 !important;
+  padding-left: 1.25rem;
+}
+body.tool2-full .tool2-left{
+  padding-right: 1.0rem;
+  border-right: 1px solid rgba(0,0,0,.08);
+}
+
+/* Tool 2 — force side-by-side flex layout (Desmos-like) */
+body.tool2-full .app-container{
+  display:flex;
+  flex-direction:row;
+  align-items:flex-start;
+  width:100%;
+  gap: 1.25rem;
+}
+body.tool2-full .side-panel{
+  width: 360px;
+  flex-shrink:0;
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 140px);
+  overflow:auto;
+  padding-right: .35rem;
+  border-right: 1px solid rgba(0,0,0,.08);
+}
+body.tool2-full .plot-area{
+  flex: 1 1 auto;
+  min-width: 0; /* critical: let Plotly fill remaining width */
+}
+  </style>
+</head>
+<body class=\"tool2-full\">
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html">Suwen<span> Shi</span></a>
+      <div class="top-actions">
+        <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
+        <a class="btn" href="#" onclick="window.close(); return false;">Close window</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="toolpage-wrap">
+    <div class="container tool2-wide">
+      <div class="toolpage-head">
+        <div>
+          <h1>Tool 2 — Equation + Data Visualizer</h1>
+          <p class="muted" style="margin:.25rem 0 0;">Runs fully in your browser (no uploads). Upload Excel/CSV data, add equations, and overlay up to 10 figures.</p>
+        </div>
+      </div>
+
+      <div class="toolpage-card">
+        <div class="card">
+          
+<div class="app-container">
+  <div class="side-panel">
+<div aria-label="Equation and data visualizer" class="tool2-ui" role="group">
+  <div class="tool2-block">
+    <div class="tool2-block-head">
+      <h4>1) Upload data (Excel/CSV)</h4>
+      <span class="muted small">Each sheet/file should contain two columns (x, y). Headers are OK.</span>
+    </div>
+    <label class="toolkit-label">
+      <span>Select one or more files</span>
+      <input id="tool2Files" type="file" multiple
+        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" />
+    </label>
+    <div id="tool2DatasetList" class="tool2-list" aria-live="polite"></div>
+  </div>
+
+  <div class="tool2-block">
+    <div class="tool2-block-head">
+      <h4>2) Add equation curves</h4>
+      <span class="muted small">Example: <code>exp(x/a) + exp(b*x/tan(c))</code></span>
+    </div>
+
+    <div class="tool2-row">
+      <button id="tool2AddEq" class="btn" type="button">+ Add equation</button>
+      <div class="tool2-range">
+        <label class="tool2-mini">
+          <span>x min</span>
+          <input id="tool2XMin" type="number" step="any" value="-1" />
+        </label>
+        <label class="tool2-mini">
+          <span>x max</span>
+          <input id="tool2XMax" type="number" step="any" value="1" />
+        </label>
+        <label class="tool2-mini">
+          <span>points</span>
+          <input id="tool2N" type="number" min="50" max="5000" step="50" value="600" />
+        </label>
+      </div>
+    </div>
+
+    <div id="tool2EqList" class="tool2-eqs"></div>
+    <p class="muted small" style="margin:.5rem 0 0;">Tip: Use parameters like <code>a</code>, <code>b</code>, <code>c</code> — they’ll appear as editable inputs automatically. After you render once, you can drag the sliders for instant updates.</p>
+  </div>
+
+  <div class="tool2-block">
+    <div class="tool2-block-head">
+      <h4>3) Figures &amp; overlays</h4>
+      <span class="muted small">Assign each dataset/curve to a figure. Up to 10 figures.</span>
+    </div>
+
+    <div class="tool2-row">
+      <label class="tool2-mini">
+        <span># figures</span>
+        <input id="tool2FigCount" type="number" min="1" max="10" step="1" value="1" />
+      </label>
+
+      <label class="tool2-check">
+        <input id="tool2ShowLegend" type="checkbox" checked />
+        Show legend
+      </label>
+
+      <div class="actions">
+        <button id="tool2Render" class="btn primary" type="button">Render / Update plots</button>
+        <button id="tool2Clear" class="btn" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div id="tool2FigSettings" class="tool2-figsettings"></div>
+
+    <p id="tool2Status" class="muted small" aria-live="polite">
+      Tip: upload data, add an equation, then click “Render / Update plots”.
+    </p>
+
+    <details class="toolkit-details">
+      <summary>Supported syntax &amp; tips</summary>
+      <ul>
+        <li>Use <code>x</code> as the independent variable.</li>
+        <li>Use parameters like <code>a</code>, <code>b</code>, <code>c</code> anywhere in the expression; they’ll appear as editable inputs.</li>
+        <li>Functions: <code>exp</code>, <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>asin</code>, <code>acos</code>, <code>atan</code>, <code>log</code>, <code>ln</code>, <code>sqrt</code>, <code>abs</code>.</li>
+        <li>Powers: <code>x^2</code>. Constants: <code>pi</code>, <code>e</code>.</li>
+        <li>If you want to use an uploaded dataset’s <code>x</code> values for an equation, switch the equation’s <em>x source</em> to “from dataset”.</li>
+      </ul>
+    </details>
+  </div>
+  </div>
+  </div>
+
+  <div class="plot-area">
+<div class="tool2-right-head">
+      <h4 style="margin:0;">Visualization</h4>
+      <p class="muted small" style="margin:.25rem 0 0;">Plots update instantly when you drag parameters (after your first Render).</p>
+
+<div class="tool2-float-controls">
+  <label class="tool2-check" style="margin:0;">
+    <input id="tool2FloatToggle" type="checkbox" />
+    <span>Floating preview</span>
+  </label>
+
+<label class="tool2-check" style="margin:0 0 0 12px;">
+  <input id="tool2AutoFloat" type="checkbox" checked />
+  <span>Auto-float when plots off-screen</span>
+</label>
+  <label class="tool2-mini" style="margin:0;">
+    <span>Figure</span>
+    <select id="tool2FloatFig" class="tool2-select"></select>
+  </label>
+</div>
+    </div>
+    <div id="tool2PlotGrid" class="plot-grid"></div>
+
+<div class="tool2-right-sliders card">
+  <h4 style="margin:0 0 6px;">Parameter sliders</h4>
+  <p class="muted small" style="margin:0 0 10px;">Drag sliders to update plots instantly. Values sync with the boxes on the left.</p>
+  <div id="tool2ParamSliders" class="tool2-sliderpanel"></div>
+</div>
+  </div>
+  </div>
+</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  
+<!-- Floating preview window -->
+<div id="tool2FloatWin" class="tool2-floatwin" style="display:none;">
+  <div class="tool2-floatbar" id="tool2FloatBar" title="Drag to move">
+    <div class="tool2-floattitle" id="tool2FloatTitle">Floating preview</div>
+    <button class="tool2-floatclose" id="tool2FloatClose" type="button" title="Close">✕</button>
+  </div>
+  <div class="tool2-floatbody">
+    <div id="tool2FloatPlot" class="plot"></div>
+    <div id="tool2FloatEq" class="tool2-float-eq"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.2/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+  <script src="assets/js/tool2.js"></script>
+</body>
+</html>

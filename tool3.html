@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tool 3 — Easy GIF Maker for Time-Series Data</title>
+  <meta name="description" content="Upload Excel or CSV, choose a sheet and columns, preview a plot, and export an animated GIF without coding." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  <link href="assets/css/style.css" rel="stylesheet" />
+  <style>
+    body{ background: var(--alt); }
+    .toolpage-wrap{ padding: 28px 0 48px; }
+    .toolpage-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+    .toolpage-head h1{ margin:0; font-size: clamp(24px, 3vw, 36px); }
+    .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 840px; }
+    .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top:1rem; }
+    .tool3-left{ width:400px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
+    .tool3-right{ flex:1 1 auto; min-width:0; }
+    .tool3-panel + .tool3-panel{ margin-top:14px; }
+    .tool3-panel .card{ padding:18px; }
+    .tool3-step{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px; background:#b91c1c; color:#fff; font-weight:800; font-size:.9rem; margin-right:8px; }
+    .tool3-label{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; font-weight:600; }
+    .tool3-label span{ font-size:.95rem; }
+    .tool3-input, .tool3-select, .tool3-number{
+      width:100%; padding:.72rem .8rem; border-radius:14px; border:1px solid rgba(0,0,0,.12); background:#fff; font:inherit;
+    }
+    .tool3-grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .tool3-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .tool3-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .tool3-note{ color:#5b6472; font-size:.92rem; margin-top:6px; }
+    .tool3-status{ color:#5b6472; font-size:.92rem; margin-top:8px; }
+    .tool3-hidden{ display:none !important; }
+    .tool3-help{ background:#fff8f1; border:1px solid #f6d7ae; border-radius:14px; padding:12px 14px; color:#7c4a03; font-size:.93rem; }
+    .tool3-plotcard .card{ padding:18px; }
+    .tool3-plot{ width:100%; height:620px; border-radius:18px; overflow:hidden; border:1px solid rgba(0,0,0,.08); background:#fff; }
+    .tool3-meta{ margin-top:10px; color:#5b6472; font-size:.95rem; }
+    .tool3-gif-wrap{ display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start; }
+    .tool3-gif-preview{
+      width:100%; min-height:260px; border:1px dashed rgba(0,0,0,.14); border-radius:18px;
+      display:flex; align-items:center; justify-content:center; background:#fff; overflow:hidden;
+    }
+    .tool3-gif-preview img{ max-width:100%; display:block; }
+    .tool3-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
+      background:rgba(185,28,28,.08); color:#991b1b; font-size:.86rem; font-weight:700;
+    }
+    @media (max-width: 1020px){
+      .tool3-shell{ flex-direction:column; }
+      .tool3-left{ width:100%; position:static; max-height:none; overflow:visible; }
+      .tool3-gif-wrap{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="toolpage-wrap">
+    <div class="container">
+      <div class="toolpage-head">
+        <div>
+          <div class="tool3-badge">Tool 3 · Online · No coding needed</div>
+          <h1>Easy GIF Maker for Time-Series Data</h1>
+          <p>
+            This version is designed to be as simple as possible. Upload your Excel or CSV file, pick the sheet,
+            choose one plot type, preview it, then either generate the GIF directly or export the frame ZIP first for a faster workflow.
+          </p>
+        </div>
+        <div class="tool3-actions">
+          <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
+          <a class="btn primary" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
+        </div>
+      </div>
+
+      <div class="tool3-shell">
+        <div class="tool3-left">
+          <div class="tool3-panel">
+            <div class="card">
+              <h3 style="margin-top:0;"><span class="tool3-step">1</span>Upload your file</h3>
+              <div class="tool3-help">
+                Use the example Excel if you want a template. After uploading, the sheet list should fill in automatically.
+              </div>
+              <label class="tool3-label">
+                <span>Excel or CSV file</span>
+                <input class="tool3-input" id="tool3File" type="file" accept=".xlsx,.xls,.csv,.txt" />
+              </label>
+              <label class="tool3-label">
+                <span>Sheet</span>
+                <select class="tool3-select" id="tool3Sheet"></select>
+              </label>
+              <div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
+            </div>
+          </div>
+
+          <div class="tool3-panel">
+            <div class="card">
+              <h3 style="margin-top:0;"><span class="tool3-step">2</span>Choose the plot type</h3>
+              <label class="tool3-label">
+                <span>Plot type</span>
+                <select class="tool3-select" id="tool3PlotType">
+                  <option value="shift">Lag plot: variable(n) vs variable(n+skip)</option>
+                  <option value="trajectory">Trajectory plot: 2D or 3D variable path</option>
+                </select>
+              </label>
+              <div class="tool3-note" id="tool3Summary">
+                After loading a sheet, choose the columns below. The plot updates automatically.
+              </div>
+            </div>
+          </div>
+
+          <div class="tool3-panel" id="tool3ShiftPanel">
+            <div class="card">
+              <h3 style="margin-top:0;"><span class="tool3-step">3A</span>Lag-plot settings</h3>
+              <label class="tool3-label">
+                <span>Time column</span>
+                <select class="tool3-select" id="tool3TimeShift"></select>
+              </label>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Variable</span>
+                  <select class="tool3-select" id="tool3ShiftVar"></select>
+                </label>
+                <label class="tool3-label">
+                  <span>Lag plot mode</span>
+                  <select class="tool3-select" id="tool3LagMode">
+                    <option value="2d" selected>2D lag plot</option>
+                    <option value="3d">3D lag plot (z = time)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Skip between points</span>
+                  <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="tool3-label">
+                  <span>Window size in each GIF frame</span>
+                  <input class="tool3-number" id="tool3LagWindow" type="number" min="5" max="5000" step="1" value="120" />
+                </label>
+              </div>
+              <div class="tool3-note">Lag-plot exports now use a moving local window, so each PNG frame and the final GIF clearly shows the shape near the selected time instead of collapsing into one crowded global path.</div>
+            </div>
+          </div>
+
+          <div class="tool3-panel tool3-hidden" id="tool3TrajectoryPanel">
+            <div class="card">
+              <h3 style="margin-top:0;"><span class="tool3-step">3B</span>Trajectory settings</h3>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Time / order column</span>
+                  <select class="tool3-select" id="tool3TimeTraj"></select>
+                </label>
+                <label class="tool3-label">
+                  <span>Mode</span>
+                  <select class="tool3-select" id="tool3Mode">
+                    <option value="2d">2D trajectory</option>
+                    <option value="3d">3D trajectory</option>
+                  </select>
+                </label>
+              </div>
+              <div class="tool3-grid-3">
+                <label class="tool3-label">
+                  <span>X variable</span>
+                  <select class="tool3-select" id="tool3X"></select>
+                </label>
+                <label class="tool3-label">
+                  <span>Y variable</span>
+                  <select class="tool3-select" id="tool3Y"></select>
+                </label>
+                <label class="tool3-label" id="tool3ZWrap">
+                  <span>Z variable</span>
+                  <select class="tool3-select" id="tool3Z"></select>
+                </label>
+              </div>
+              <div class="tool3-note">The GIF will follow the moving point along your selected path.</div>
+            </div>
+          </div>
+
+          <div class="tool3-panel">
+            <div class="card">
+              <h3 style="margin-top:0;"><span class="tool3-step">4</span>Make the GIF</h3>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Quality</span>
+                  <select class="tool3-select" id="tool3GifQuality">
+                    <option value="fast" selected>Fast</option>
+                    <option value="high">High quality</option>
+                  </select>
+                </label>
+                <label class="tool3-label">
+                  <span>Moving point size</span>
+                  <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
+                </label>
+              </div>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Frames</span>
+                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="80" step="1" value="18" />
+                </label>
+                <label class="tool3-label">
+                  <span>FPS</span>
+                  <input class="tool3-number" id="tool3Fps" type="number" min="1" max="20" step="1" value="6" />
+                </label>
+              </div>
+              <div class="tool3-actions">
+                <button class="btn primary" id="tool3MakeGif" type="button">Generate GIF</button>
+                <button class="btn" id="tool3FramesZipBtn" type="button">Download Frames ZIP</button>
+                <a class="btn" id="tool3GifDownload" download="plot_animation.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
+                <a class="btn" id="tool3FramesZipDownload" download="plot_frames.zip" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download Frames ZIP file</a>
+              </div>
+              <div class="tool3-status" id="tool3GifStatus">GIF export is available for both plot types. This version uses a fully local browser-side encoder, and the lag-plot option now matches the example workbook format.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tool3-right">
+          <div class="tool3-plotcard">
+            <div class="card">
+              <h3 style="margin-top:0;">Preview</h3>
+              <div class="tool3-plot" id="tool3Plot"></div>
+              <div class="tool3-meta" id="tool3Meta">Load a file to preview your plot here.</div>
+            </div>
+          </div>
+
+          <div class="tool3-panel" id="tool3GifCard">
+            <div class="card">
+              <h3 style="margin-top:0;">GIF output</h3>
+              <div class="tool3-gif-wrap">
+                <div>
+                  <div class="tool3-gif-preview" id="tool3GifPreview">Generate a GIF to preview it here.</div>
+                  <div class="tool3-note" style="margin-top:10px;">Fast path: export PNG frames as a ZIP first. Then use the merge block below to convert that ZIP into a GIF online.</div>
+                </div>
+                <div>
+                  <p style="margin-top:0;"><strong>Simple tips</strong></p>
+                  <ul class="bullets">
+                    <li>For the example workbook, try 2D lag plot first, or 3D lag plot if you want z = time.</li>
+                    <li>If direct GIF generation feels slow, use Download Frames ZIP first.</li>
+                    <li>You can merge a ZIP of rendered frames into a GIF in the block below.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tool3-panel" id="tool3MergeCard">
+            <div class="card">
+              <h3 style="margin-top:0;">Merge a frame ZIP into a GIF</h3>
+              <div class="tool3-gif-wrap">
+                <div>
+                  <div class="tool3-gif-preview" id="tool3MergePreview">Upload a ZIP of PNG or JPG frames to preview the merged GIF here.</div>
+                  <div class="tool3-note" style="margin-top:10px;">Use this after downloading the frame ZIP. You can also upload your own ZIP of rendered frames.</div>
+                </div>
+                <div>
+                  <label class="tool3-label">
+                    <span>Frame ZIP file</span>
+                    <input class="tool3-input" id="tool3MergeZipFile" type="file" accept=".zip" />
+                  </label>
+                  <label class="tool3-label">
+                    <span>FPS</span>
+                    <input class="tool3-number" id="tool3MergeFps" type="number" min="1" max="20" step="1" value="6" />
+                  </label>
+                  <div class="tool3-actions">
+                    <button class="btn primary" id="tool3MergeGifBtn" type="button">Create GIF from ZIP</button>
+                    <a class="btn" id="tool3MergeGifDownload" download="merged_frames.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download merged GIF</a>
+                  </div>
+                  <div class="tool3-status" id="tool3MergeStatus">Upload a ZIP of PNG or JPG frames to merge them into a GIF here.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="assets/js/tool3.js"></script>
+</body>
+</html>
