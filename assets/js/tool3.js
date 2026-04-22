@@ -22,10 +22,8 @@
   const elFrames = $("tool3Frames");
   const elFps = $("tool3Fps");
   const elPointSize = $("tool3PointSize");
-  const elMakeGif = $("tool3MakeGif");
   const elFramesZipBtn = $("tool3FramesZipBtn");
   const elFramesZipDownload = $("tool3FramesZipDownload");
-  const elGifDownload = $("tool3GifDownload");
   const elGifStatus = $("tool3GifStatus");
   const elGifPreview = $("tool3GifPreview");
   const elMergeZipFile = $("tool3MergeZipFile");
@@ -48,7 +46,6 @@
     headers: [],
     rows: [],
     numericHeaders: [],
-    gifUrl: "",
     frameZipUrl: "",
     mergeGifUrl: ""
   };
@@ -151,10 +148,6 @@
     }
   }
 
-  function setGifDownloadEnabled(enabled, href, filename) {
-    setDownloadLink(elGifDownload, enabled, href, filename);
-  }
-
   function setFramesZipDownloadEnabled(enabled, href, filename) {
     setDownloadLink(elFramesZipDownload, enabled, href, filename);
   }
@@ -166,10 +159,6 @@
   function revokeObjectUrl(key) {
     if (state[key] && state[key].startsWith("blob:")) URL.revokeObjectURL(state[key]);
     state[key] = "";
-  }
-
-  function revokeGifUrl() {
-    revokeObjectUrl("gifUrl");
   }
 
   function revokeFrameZipUrl() {
@@ -1028,44 +1017,6 @@
   }
 
 
-  function encodeAnimatedGifWithGifJs(frameCanvases, cfg, fps, onProgress) {
-    return new Promise((resolve, reject) => {
-      if (!window.GIF) {
-        reject(new Error("GIF.js is not available."));
-        return;
-      }
-
-      const workerCount = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1 || 2));
-      const qualityValue = cfg.mode === "high" ? 8 : 14;
-      const gif = new window.GIF({
-        workers: workerCount,
-        quality: qualityValue,
-        width: cfg.width,
-        height: cfg.height,
-        repeat: 0,
-        background: "#ffffff",
-        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js"
-      });
-
-      const delayMs = Math.max(50, Math.round(1000 / fps));
-      frameCanvases.forEach((canvas) => {
-        gif.addFrame(canvas, { copy: true, delay: delayMs });
-      });
-
-      gif.on("progress", (ratio) => {
-        if (onProgress) onProgress(ratio, frameCanvases.length);
-      });
-      gif.on("finished", (blob) => resolve(blob));
-      gif.on("abort", () => reject(new Error("GIF export was aborted.")));
-
-      try {
-        gif.render();
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-
   function encodeAnimatedGif(frameCanvases, width, height, delayCs, onProgress) {
     const palette = buildGIFPalette332();
     const parts = [];
@@ -1198,7 +1149,15 @@
       const base = spec.outName.replace(/\.gif$/i, "");
       const zipName = `${base}_frames.zip`;
       setFramesZipDownloadEnabled(true, state.frameZipUrl, zipName);
-      setGifStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created.`);
+      const previewCanvas = spec.drawFrame(spec.frameIndices[Math.max(0, spec.frameIndices.length - 1)]);
+      if (elGifPreview) {
+        elGifPreview.innerHTML = "";
+        previewCanvas.style.maxWidth = "100%";
+        previewCanvas.style.height = "auto";
+        previewCanvas.style.display = "block";
+        elGifPreview.appendChild(previewCanvas);
+      }
+      setGifStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created. Download the ZIP, then upload it in Step 2 below to make the GIF.`);
       if (elFramesZipDownload) elFramesZipDownload.click();
     } catch (err) {
       console.error(err);
@@ -1206,7 +1165,7 @@
     } finally {
       if (elFramesZipBtn) {
         elFramesZipBtn.disabled = false;
-        elFramesZipBtn.textContent = "Download Frames ZIP";
+        elFramesZipBtn.textContent = "Render and download Frames ZIP";
       }
     }
   }
@@ -1286,50 +1245,6 @@
     }
   }
 
-  async function generateGif() {
-    if (!state.rows.length) {
-      setGifStatus("Upload data first before generating a GIF.");
-      return;
-    }
-
-    if (elMakeGif) {
-      elMakeGif.disabled = true;
-      elMakeGif.textContent = "Generating…";
-    }
-
-    revokeGifUrl();
-    setGifDownloadEnabled(false);
-    setGifPreview("Generating GIF…");
-    setGifStatus("Preparing frames…");
-
-    try {
-      const spec = collectAnimationSpec();
-      const frameCanvases = await buildFrameCanvases(spec, "Drawing frame");
-      setGifStatus("Writing GIF file…");
-      await yieldToUi();
-      const delayCs = Math.max(2, Math.round(100 / spec.fps));
-      const blob = encodeAnimatedGif(frameCanvases, spec.cfg.width, spec.cfg.height, delayCs, (i, total) => {
-        if (i % 2 === 0 || i === total - 1) {
-          setGifStatus(`Writing GIF file… ${i + 1}/${total}`);
-        }
-      });
-      state.gifUrl = URL.createObjectURL(blob);
-      setGifPreview(`<img src="${state.gifUrl}" alt="GIF preview" />`);
-      setGifDownloadEnabled(true, state.gifUrl, spec.outName);
-      setGifStatus(`GIF ready (${spec.cfg.mode === "high" ? "High quality" : "Fast"}). ${spec.frameIndices.length} frames at ${spec.fps} fps.`);
-    } catch (err) {
-      console.error(err);
-      const reason = err && err.message ? err.message : "GIF export failed.";
-      setGifPreview("GIF export failed. Try the frame ZIP workflow below, then merge the ZIP back into a GIF.");
-      setGifStatus(reason);
-    } finally {
-      if (elMakeGif) {
-        elMakeGif.disabled = false;
-        elMakeGif.textContent = "Generate GIF";
-      }
-    }
-  }
-
   function handleSheetChange() {
     parseSheet(elSheet.value);
     refreshControls();
@@ -1378,7 +1293,6 @@
       syncGifInputsToMode();
     });
   }
-  if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
   if (elFramesZipBtn) elFramesZipBtn.addEventListener("click", downloadFramesZip);
   if (elMergeGifBtn) elMergeGifBtn.addEventListener("click", mergeFramesZipToGif);
 
@@ -1388,10 +1302,9 @@
 
   updatePanels();
   syncGifInputsToMode();
-  setGifDownloadEnabled(false);
   setFramesZipDownloadEnabled(false);
   setMergeGifDownloadEnabled(false);
-  setGifStatus("GIF export is available for both plot types. If GIF generation is slow, use Download Frames ZIP first, then merge the ZIP into a GIF in the new block below.");
+  setGifStatus("Step 1: render numbered PNG frames and download them as a ZIP. Step 2: upload that ZIP below to merge it into a GIF.");
   setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
   renderCurrentPlot();
 })();
