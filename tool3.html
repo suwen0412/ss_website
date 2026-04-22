@@ -67,7 +67,8 @@
         </div>
         <div class="tool3-actions">
           <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
-          <a class="btn primary" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
+          <button class="btn primary" type="button" id="tool3LoadExampleBtn">Load built-in example</button>
+          <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
         </div>
       </div>
 
@@ -77,7 +78,7 @@
             <div class="card">
               <h3 style="margin-top:0;"><span class="tool3-step">1</span>Upload your file</h3>
               <div class="tool3-help">
-                Use the example Excel if you want a template. After uploading, the sheet list should fill in automatically.
+                Use the built-in example if you want an instant test. You can also download the example Excel as a template and upload your own file after.
               </div>
               <label class="tool3-label">
                 <span>Excel or CSV file</span>
@@ -87,7 +88,7 @@
                 <span>Sheet</span>
                 <select class="tool3-select" id="tool3Sheet"></select>
               </label>
-              <div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
+              <div class="tool3-status" id="tool3LoadStatus">Click “Load built-in example” or upload a file to begin.</div>
             </div>
           </div>
 
@@ -127,7 +128,6 @@
                   </select>
                 </label>
               </div>
-<<<<<<< HEAD
               <div class="tool3-grid-2">
                 <label class="tool3-label">
                   <span>Skip between points</span>
@@ -139,13 +139,6 @@
                 </label>
               </div>
               <div class="tool3-note">Lag-plot exports now use a moving local window, so each PNG frame and the final GIF clearly shows the shape near the selected time instead of collapsing into one crowded global path.</div>
-=======
-              <label class="tool3-label">
-                <span>Skip (frames)</span>
-                <input class="tool3-number" id="tool3Skip" type="number" min="1" step="1" value="1" />
-              </label>
-              <div class="tool3-note">The lag-plot GIF can now be 2D, or 3D with x = variable(n), y = variable(n+skip), and z = time.</div>
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
             </div>
           </div>
 
@@ -283,7 +276,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="assets/js/tool3.js"></script>
 </body>

@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
 
   const elFile = $("tool3File");
+  const elLoadExampleBtn = $("tool3LoadExampleBtn");
   const elSheet = $("tool3Sheet");
   const elPlotType = $("tool3PlotType");
   const elShiftPanel = $("tool3ShiftPanel");
@@ -9,10 +10,7 @@
   const elTimeShift = $("tool3TimeShift");
   const elShiftVar = $("tool3ShiftVar");
   const elSkip = $("tool3Skip");
-<<<<<<< HEAD
   const elLagWindow = $("tool3LagWindow");
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   const elLagMode = $("tool3LagMode");
   const elTimeTraj = $("tool3TimeTraj");
   const elMode = $("tool3Mode");
@@ -41,7 +39,7 @@
   const elPlot = $("tool3Plot");
   const elMeta = $("tool3Meta");
 
-  if (!elFile || !elSheet || !elPlot || !window.XLSX || !window.Plotly) return;
+  if (!elFile || !elSheet || !elPlot) return;
 
   const state = {
     workbook: null,
@@ -79,6 +77,57 @@
     const n = parseInt(v, 10);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(lo, Math.min(hi, n));
+  }
+
+  function parseCsvLine(line) {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i += 1; }
+          else inQuotes = false;
+        } else cur += ch;
+      } else if (ch === ',') {
+        out.push(cur);
+        cur = "";
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function parseCsvMatrix(text) {
+    const cleaned = String(text || "")
+      .replace(/^\uFEFF/, "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
+    const lines = cleaned.split("\n");
+    return lines.filter((line) => line !== "").map(parseCsvLine);
+  }
+
+  function getPlotSize() {
+    const width = Math.max(520, Math.floor(elPlot.clientWidth || 920));
+    const height = Math.max(420, Math.floor(elPlot.clientHeight || 620));
+    return { width, height };
+  }
+
+  function setPlotCanvas(canvas) {
+    if (!canvas || !elPlot) return;
+    elPlot.innerHTML = "";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    elPlot.appendChild(canvas);
+  }
+
+  function setPlotPlaceholder(message) {
+    if (!elPlot) return;
+    elPlot.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#6b7280;font-size:18px;text-align:center;padding:20px;">${escapeHtml(message)}</div>`;
   }
 
   function setLoadStatus(msg) { if (elLoadStatus) elLoadStatus.textContent = msg; }
@@ -201,6 +250,11 @@
     if (!state.workbook || !name) return;
     const ws = state.workbook.Sheets[name];
     if (!ws) return;
+    if (ws.__matrix) {
+      parseMatrixToState(name, ws.__matrix);
+      return;
+    }
+    if (!window.XLSX) return;
     const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
     parseMatrixToState(name, matrix);
   }
@@ -243,11 +297,22 @@
 
     if (ext === "csv" || ext === "txt") {
       const text = await file.text();
-      state.workbook = XLSX.read(text, { type: "string" });
-    } else {
-      const buffer = await file.arrayBuffer();
-      state.workbook = XLSX.read(buffer, { type: "array" });
+      state.workbook = null;
+      const matrix = parseCsvMatrix(text);
+      elSheet.innerHTML = '<option value="CSV data">CSV data</option>';
+      elSheet.value = "CSV data";
+      parseMatrixToState("CSV data", matrix);
+      refreshControls();
+      renderCurrentPlot();
+      return;
     }
+
+    if (!window.XLSX) {
+      throw new Error("The Excel reader did not load on this page. Use Load built-in example, or save your file as CSV and upload that instead.");
+    }
+
+    const buffer = await file.arrayBuffer();
+    state.workbook = XLSX.read(buffer, { type: "array" });
 
     const sheets = (state.workbook && state.workbook.SheetNames) ? state.workbook.SheetNames : [];
     if (!sheets.length) {
@@ -266,6 +331,26 @@
     parseSheet(sheets[0]);
     refreshControls();
     renderCurrentPlot();
+  }
+
+  async function loadBuiltInExample() {
+    setLoadStatus("Loading built-in example…");
+    const res = await fetch("assets/data/toolkit3_example.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("Could not load the built-in example data.");
+    const payload = await res.json();
+    const sheetNames = Object.keys(payload);
+    if (!sheetNames.length) throw new Error("Built-in example data is empty.");
+    state.workbook = { Sheets: {}, SheetNames: sheetNames.slice() };
+    state.fileName = "Built-in example";
+    sheetNames.forEach((name) => {
+      state.workbook.Sheets[name] = { __matrix: payload[name] };
+    });
+    elSheet.innerHTML = sheetNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    elSheet.value = sheetNames[0];
+    parseMatrixToState(sheetNames[0], payload[sheetNames[0]] || []);
+    refreshControls();
+    renderCurrentPlot();
+    setLoadStatus(`Loaded ${state.rows.length} rows from “${state.sheetName}”.`);
   }
 
   function getLagData() {
@@ -331,128 +416,124 @@
     };
   }
 
+  function renderShiftPreviewCanvas(d) {
+    const size = getPlotSize();
+    if (isLag3D()) return renderLag3DGifFrame(d, Math.max(0, d.x.length - 1), { width: size.width, height: size.height });
+    const canvas = createCanvas(size), ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    const all = d.x.concat(d.y);
+    const [xmin, xmax] = getMinMax(all);
+    const [ymin, ymax] = getMinMax(all);
+    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+    drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
+    ctx.save();
+    ctx.strokeStyle = "#9ca3af";
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(xMap(xmin), yMap(xmin));
+    ctx.lineTo(xMap(xmax), yMap(xmax));
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    if (d.x.length) {
+      ctx.fillStyle = "#dc2626";
+      ctx.beginPath();
+      ctx.arc(xMap(d.x[d.x.length - 1]), yMap(d.y[d.y.length - 1]), ps * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.yCol}(n)`, w / 2 - 24, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.yCol}(n+${d.skip})`, 0, 0);
+    ctx.restore();
+    return canvas;
+  }
+
+  function renderTrajectoryPreviewCanvas(d) {
+    const size = getPlotSize();
+    if (d.mode === "3d") return renderTrajectory3DGifFrame(d, Math.max(0, d.x.length - 1), { width: size.width, height: size.height });
+    const canvas = createCanvas(size), ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    const [xmin, xmax] = getMinMax(d.x), [ymin, ymax] = getMinMax(d.y);
+    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    for (let i = 0; i < d.x.length; i++) {
+      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    if (d.x.length) {
+      ctx.fillStyle = "#dc2626";
+      ctx.beginPath();
+      ctx.arc(xMap(d.x[d.x.length - 1]), yMap(d.y[d.y.length - 1]), ps * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.yCol}`, 0, 0);
+    ctx.restore();
+    return canvas;
+  }
+
   function renderShiftPlot() {
     const d = getLagData();
-    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
-    if (isLag3D()) {
-      const traces = [
-        { x: d.x, y: d.y, z: d.t, type: "scatter3d", mode: "lines", name: "Lag path", line: { width: 4 } },
-        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.t.length ? [d.t[d.t.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
-      ];
-      const layout = {
-        title: `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`,
-        margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: build3DScene(`${d.yCol}(n)`, `${d.yCol}(n+${d.skip})`, d.tCol),
-        legend: { orientation: "h", y: 1.06 },
-        paper_bgcolor: "#fff"
-      };
-      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
-<<<<<<< HEAD
-      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}. GIF frames use a moving window for clearer local structure.`);
-      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export uses a moving window so each frame shows the local lag structure clearly.";
-=======
-      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}.`);
-      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export will animate x=variable(n), y=variable(n+skip), z=time.";
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
+    if (!d.x.length) {
+      setPlotPlaceholder("No valid lag-plot points were found in the selected columns.");
+      setMeta("Choose numeric columns to preview your lag plot.");
       return;
     }
-
-    const traces = [
-      {
-        x: d.x,
-        y: d.y,
-        type: "scatter",
-        mode: "lines+markers",
-        name: `${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`,
-        marker: { size: 5 },
-        line: { width: 2.5 }
-      },
-      {
-        x: d.x.length ? [d.x[d.x.length - 1]] : [],
-        y: d.y.length ? [d.y[d.y.length - 1]] : [],
-        type: "scatter",
-        mode: "markers",
-        name: "Current point",
-        marker: { size: Math.max(7, pointSize) }
-      }
-    ];
-    const diagMin = Math.min(...d.x, ...d.y);
-    const diagMax = Math.max(...d.x, ...d.y);
-    if (Number.isFinite(diagMin) && Number.isFinite(diagMax)) {
-      traces.unshift({
-        x: [diagMin, diagMax],
-        y: [diagMin, diagMax],
-        type: "scatter",
-        mode: "lines",
-        name: "y=x",
-        line: { width: 1.5, dash: "dash", color: "#9ca3af" }
-      });
+    setPlotCanvas(renderShiftPreviewCanvas(d));
+    if (isLag3D()) {
+      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}. GIF frames use a moving window for clearer local structure.`);
+      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export uses a moving window so each frame shows the local lag structure clearly.";
+    } else {
+      setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}. GIF frames use a moving window for clearer local structure.`);
+      if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export uses a moving window of lag points in time order so the local pattern stays visible.";
     }
-    const layout = {
-      title: `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`,
-      margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: `${d.yCol}(n)`, automargin: true },
-      yaxis: { title: `${d.yCol}(n+${d.skip})`, automargin: true, scaleanchor: "x", scaleratio: 1 },
-      legend: { orientation: "h", y: 1.12 },
-      paper_bgcolor: "#fff",
-      plot_bgcolor: "#fff"
-    };
-    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
-<<<<<<< HEAD
-    setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}. GIF frames use a moving window for clearer local structure.`);
-    if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export uses a moving window of lag points in time order so the local pattern stays visible.";
-=======
-    setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}.`);
-    if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export animates variable(n) versus variable(n+skip) in time order.";
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   }
 
   function renderTrajectoryPlot() {
     const d = getTrajectoryData();
-    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
-    let traces, layout;
-    if (d.mode === "3d") {
-      traces = [
-        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Trajectory", line: { width: 5 } },
-        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
-      ];
-      layout = {
-        title: `${d.xCol}–${d.yCol}–${d.zCol} trajectory`,
-        margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: build3DScene(d.xCol, d.yCol, d.zCol),
-        legend: { orientation: "h", y: 1.06 },
-        paper_bgcolor: "#fff"
-      };
-    } else {
-      traces = [
-        { x: d.x, y: d.y, type: "scatter", mode: "lines", name: "Trajectory", line: { width: 3 } },
-        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], type: "scatter", mode: "markers", name: "Current point", marker: { size: pointSize } }
-      ];
-      layout = {
-        title: `${d.xCol}–${d.yCol} trajectory`,
-        margin: { l: 62, r: 24, t: 56, b: 58 },
-        xaxis: { title: d.xCol, automargin: true },
-        yaxis: { title: d.yCol, automargin: true },
-        legend: { orientation: "h", y: 1.12 },
-        paper_bgcolor: "#fff",
-        plot_bgcolor: "#fff"
-      };
+    if (!d.x.length) {
+      setPlotPlaceholder("No valid trajectory points were found in the selected columns.");
+      setMeta("Choose numeric columns to preview your trajectory plot.");
+      return;
     }
-    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+    setPlotCanvas(renderTrajectoryPreviewCanvas(d));
     setMeta(`Showing ${d.x.length} valid trajectory points ordered by ${d.tCol}.`);
     if (elSummary) elSummary.textContent = "Trajectory plot selected. GIF export will move a point along the path.";
   }
 
   function renderCurrentPlot() {
     if (!state.rows.length) {
-      Plotly.react(elPlot, [], {
-        annotations: [{ text: "Upload a file to begin.", showarrow: false, xref: "paper", yref: "paper", x: 0.5, y: 0.5, font: { size: 18, color: "#6b7280" } }],
-        xaxis: { visible: false },
-        yaxis: { visible: false },
-        margin: { l: 0, r: 0, t: 10, b: 0 },
-        paper_bgcolor: "#fff",
-        plot_bgcolor: "#fff"
-      }, { responsive: true, displaylogo: false });
+      setPlotPlaceholder("Load a file to preview your plot here.");
       setMeta("Load a file to preview your plot here.");
       return;
     }
@@ -492,7 +573,6 @@
     return Array.from(new Set(out));
   }
 
-<<<<<<< HEAD
   function getLagWindowSize(totalPoints) {
     const fallback = Math.min(120, Math.max(5, totalPoints || 120));
     return clampInt(elLagWindow && elLagWindow.value, 5, 5000, fallback);
@@ -504,8 +584,6 @@
     return { start, end };
   }
 
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
   function getMinMax(values) {
     let lo = Infinity, hi = -Infinity;
     for (const v of values) {
@@ -604,11 +682,8 @@
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-<<<<<<< HEAD
     const windowSize = getLagWindowSize(d.x.length);
     const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
@@ -622,50 +697,29 @@
     ctx.stroke();
     ctx.restore();
 
-<<<<<<< HEAD
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = "#2563eb";
     for (let i = start; i <= end; i++) {
       ctx.beginPath();
       ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.8, 0, Math.PI * 2);
-=======
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = "#2563eb";
-    for (let i = 0; i < d.x.length; i++) {
-      ctx.beginPath();
-      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = "#2563eb";
-<<<<<<< HEAD
     ctx.lineWidth = 2.8;
     ctx.beginPath();
     for (let i = start; i <= end; i++) {
       const xx = xMap(d.x[i]);
       const yy = yMap(d.y[i]);
       if (i === start) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
-=======
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) {
-      const xx = xMap(d.x[i]);
-      const yy = yMap(d.y[i]);
-      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     }
     ctx.stroke();
 
     const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-<<<<<<< HEAD
     ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.6, 0, Math.PI * 2);
-=======
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     ctx.fill();
 
     ctx.fillStyle = "#374151";
@@ -678,10 +732,7 @@
     ctx.restore();
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
     ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 160, 44);
-<<<<<<< HEAD
     ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     return canvas;
   }
@@ -696,16 +747,12 @@
     drawBackground(ctx, w, h, `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`);
     const proj = project3DFactory(d.x, d.y, d.t, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-<<<<<<< HEAD
     const windowSize = getLagWindowSize(d.x.length);
     const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
 
-<<<<<<< HEAD
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = "#2563eb";
     ctx.lineWidth = 2.8;
@@ -713,40 +760,15 @@
     for (let i = start; i <= end; i++) {
       const p = proj(i);
       if (i === start) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-=======
-    ctx.globalAlpha = 0.15;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) {
-      const p = proj(i);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-<<<<<<< HEAD
-=======
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let i = 0; i <= activeIdx; i++) {
-      const p = proj(i);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     const point = proj(activeIdx);
     const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-<<<<<<< HEAD
     ctx.arc(point.x, point.y, ps * 0.6, 0, Math.PI * 2);
-=======
-    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     ctx.fill();
 
     ctx.restore();
@@ -756,10 +778,7 @@
     ctx.fillText(`y = ${d.yCol}(n+${d.skip})`, 18, h - 18);
     ctx.fillText(`z = ${d.tCol}`, 180, h - 18);
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-<<<<<<< HEAD
     ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
-=======
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     return canvas;
   }
 
@@ -1325,17 +1344,24 @@
       await loadWorkbookFromFile(file);
     } catch (err) {
       console.error(err);
-      setLoadStatus("Could not read that file. Try the example Excel first, then match your file to that format.");
+      setLoadStatus(err && err.message ? err.message : "Could not read that file. Try the built-in example first, then match your file to that format.");
     }
   });
 
+  if (elLoadExampleBtn) {
+    elLoadExampleBtn.addEventListener("click", async () => {
+      try {
+        await loadBuiltInExample();
+      } catch (err) {
+        console.error(err);
+        setLoadStatus(err && err.message ? err.message : "Could not load the built-in example.");
+      }
+    });
+  }
+
   elSheet.addEventListener("change", handleSheetChange);
 
-<<<<<<< HEAD
   [elPlotType, elTimeShift, elShiftVar, elSkip, elLagWindow, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
-=======
-  [elPlotType, elTimeShift, elShiftVar, elSkip, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
->>>>>>> c828c93096edb23d00c0cf250bf8e9e73805d7bf
     if (!el) return;
     el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
     el.addEventListener("input", () => {
@@ -1355,6 +1381,10 @@
   if (elMakeGif) elMakeGif.addEventListener("click", generateGif);
   if (elFramesZipBtn) elFramesZipBtn.addEventListener("click", downloadFramesZip);
   if (elMergeGifBtn) elMergeGifBtn.addEventListener("click", mergeFramesZipToGif);
+
+  window.addEventListener("resize", () => {
+    if (state.rows.length) renderCurrentPlot();
+  });
 
   updatePanels();
   syncGifInputsToMode();
