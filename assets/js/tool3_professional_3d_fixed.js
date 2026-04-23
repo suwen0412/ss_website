@@ -622,11 +622,26 @@
   }
 
   function drawBackground(ctx, w, h, title, scale = 1) {
-    ctx.fillStyle = "#ffffff";
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#ffffff");
+    bg.addColorStop(1, "#f8fafc");
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#111827";
-    ctx.font = `600 ${Math.max(20, Math.round(20 * scale))}px Inter, Arial, sans-serif`;
-    ctx.fillText(title, Math.round(18 * scale), Math.round(28 * scale));
+
+    const topGlow = ctx.createLinearGradient(0, 0, w, 0);
+    topGlow.addColorStop(0, "rgba(37,99,235,0.03)");
+    topGlow.addColorStop(0.5, "rgba(15,23,42,0.01)");
+    topGlow.addColorStop(1, "rgba(220,38,38,0.03)");
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(0, 0, w, Math.round(72 * scale));
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `700 ${Math.max(20, Math.round(22 * scale))}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(title, Math.round(w / 2), Math.round(30 * scale));
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
   }
 
   function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale = 1) {
@@ -658,6 +673,132 @@
       ctx.fillText(formatTick(yv), Math.round(8 * scale), yy + Math.round(4 * scale));
       ctx.fillText(formatTick(xv), Math.max(pad.l - Math.round(12 * scale), xx - Math.round(12 * scale)), pad.t + ih + Math.round(20 * scale));
     }
+  }
+
+  function projectPoint3D(x, y, z, camera) {
+    const cz = z + camera.distance;
+    const perspective = camera.distance / Math.max(0.25, cz);
+    return {
+      x: x * perspective,
+      y: y * perspective,
+      depth: perspective,
+      rawZ: z
+    };
+  }
+
+  function build3DProjectionScene(xs, ys, zs, width, height) {
+    const [xmin, xmax] = getMinMax(xs);
+    const [ymin, ymax] = getMinMax(ys);
+    const [zmin, zmax] = getMinMax(zs);
+    const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
+    const az = Math.PI / 4.7;
+    const el = Math.PI / 6.4;
+    const camera = { distance: 4.6 };
+
+    function rotatePoint(x, y, z) {
+      const X = norm(x, xmin, xmax);
+      const Y = norm(y, ymin, ymax);
+      const Z = norm(z, zmin, zmax);
+      const xr = Math.cos(az) * X - Math.sin(az) * Y;
+      const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
+      const zr0 = Z;
+      const yr = Math.cos(el) * yr0 - Math.sin(el) * zr0;
+      const zr = Math.sin(el) * yr0 + Math.cos(el) * zr0;
+      return { x: xr, y: yr, z: zr };
+    }
+
+    const rotated = xs.map((x, i) => rotatePoint(x, ys[i], zs[i]));
+    const projected = rotated.map((p) => projectPoint3D(p.x, p.y, p.z, camera));
+
+    const cubePoints = [];
+    for (const xv of [xmin, xmax]) {
+      for (const yv of [ymin, ymax]) {
+        for (const zv of [zmin, zmax]) {
+          const r = rotatePoint(xv, yv, zv);
+          const p = projectPoint3D(r.x, r.y, r.z, camera);
+          cubePoints.push(p);
+        }
+      }
+    }
+
+    let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
+    for (const p of projected.concat(cubePoints)) {
+      minPX = Math.min(minPX, p.x);
+      maxPX = Math.max(maxPX, p.x);
+      minPY = Math.min(minPY, p.y);
+      maxPY = Math.max(maxPY, p.y);
+    }
+    const pad = 0.14;
+    const sx = (maxPX - minPX) || 1;
+    const sy = (maxPY - minPY) || 1;
+    minPX -= sx * pad;
+    maxPX += sx * pad;
+    minPY -= sy * pad;
+    maxPY += sy * pad;
+
+    function toCanvas(p) {
+      return {
+        x: ((p.x - minPX) / ((maxPX - minPX) || 1)) * width,
+        y: height - ((p.y - minPY) / ((maxPY - minPY) || 1)) * height,
+        depth: p.depth,
+        rawZ: p.rawZ
+      };
+    }
+
+    const projectedCanvas = projected.map(toCanvas);
+    const corners = cubePoints.map(toCanvas);
+    const cornerMap = {
+      '000': corners[0], '001': corners[1], '010': corners[2], '011': corners[3],
+      '100': corners[4], '101': corners[5], '110': corners[6], '111': corners[7]
+    };
+
+    return {
+      points: projectedCanvas,
+      cornerMap,
+      projectIndex(i) { return projectedCanvas[i]; },
+      axisCenter: toCanvas(projectPoint3D(...Object.values(rotatePoint((xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2)), camera))
+    };
+  }
+
+  function draw3DBoxAxes(ctx, scene, width, height, scale, labels) {
+    const edges = [
+      ['000','100'], ['000','010'], ['000','001'],
+      ['100','110'], ['100','101'],
+      ['010','110'], ['010','011'],
+      ['001','101'], ['001','011'],
+      ['110','111'], ['101','111'], ['011','111']
+    ];
+
+    ctx.save();
+    ctx.lineWidth = Math.max(1.2, 1.4 * scale);
+    for (const [a, b] of edges) {
+      const p1 = scene.cornerMap[a], p2 = scene.cornerMap[b];
+      const avgDepth = ((p1.depth || 1) + (p2.depth || 1)) / 2;
+      ctx.strokeStyle = avgDepth < 1 ? 'rgba(148,163,184,0.5)' : 'rgba(100,116,139,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    const axisEdges = [
+      ['000','100','#2563eb', `x = ${labels.xLabel}`],
+      ['000','010','#059669', `y = ${labels.yLabel}`],
+      ['000','001','#dc2626', `z = ${labels.zLabel}`]
+    ];
+    ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
+    for (const [a, b, color, text] of axisEdges) {
+      const p1 = scene.cornerMap[a], p2 = scene.cornerMap[b];
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2.2, 2.4 * scale);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(text, p2.x + Math.round(8 * scale), p2.y - Math.round(4 * scale));
+    }
+    ctx.restore();
   }
 
   function project3DFactory(xs, ys, zs, width, height) {
@@ -880,53 +1021,80 @@
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
-    const pad = { l: Math.round(24 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(28 * scale) };
+    const pad = { l: Math.round(70 * scale), r: Math.round(70 * scale), t: Math.round(62 * scale), b: Math.round(70 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
     drawBackground(ctx, w, h, labels.title, scale);
-    const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
+    const scene = build3DProjectionScene(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
 
-    ctx.globalAlpha = 0.15;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
+    draw3DBoxAxes(ctx, scene, iw, ih, scale, labels);
+
+    ctx.globalAlpha = 0.13;
+    ctx.strokeStyle = "#93c5fd";
+    ctx.lineWidth = Math.max(2.2, 2.4 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
-      const p = proj(i);
+      const p = scene.projectIndex(i);
       if (i === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = Math.max(3, 3 * scale);
+    const gradient = ctx.createLinearGradient(0, 0, iw, ih);
+    gradient.addColorStop(0, "#2563eb");
+    gradient.addColorStop(1, "#0f172a");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = Math.max(3, 3.4 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
-      const p = proj(i);
+      const p = scene.projectIndex(i);
       if (i === 0) ctx.moveTo(p.x, p.y);
       else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
 
-    const point = proj(activeIdx);
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
-    ctx.fillStyle = "#dc2626";
+    for (let i = Math.max(0, activeIdx - 14); i <= activeIdx; i++) {
+      const p = scene.projectIndex(i);
+      const fade = (i - Math.max(0, activeIdx - 14) + 1) / Math.min(15, activeIdx + 1);
+      ctx.fillStyle = `rgba(37,99,235,${0.18 + 0.42 * fade})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(1.6, 1.7 * scale) * (0.7 + 0.5 * fade), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const point = scene.projectIndex(activeIdx);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
+    const halo = ctx.createRadialGradient(point.x, point.y, Math.max(2, ps * 0.2), point.x, point.y, Math.max(8, ps * 1.15));
+    halo.addColorStop(0, "rgba(220,38,38,0.45)");
+    halo.addColorStop(1, "rgba(220,38,38,0)");
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, Math.max(8, ps * 1.2), 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ps * 0.58, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1.4, 1.6 * scale);
+    ctx.stroke();
     ctx.restore();
-    ctx.fillStyle = "#374151";
-    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    ctx.fillText(`x = ${labels.xLabel}`, Math.round(18 * scale), h - Math.round(34 * scale));
-    ctx.fillText(`y = ${labels.yLabel}`, Math.round(18 * scale), h - Math.round(18 * scale));
-    ctx.fillText(`z = ${labels.zLabel}`, Math.round(180 * scale), h - Math.round(18 * scale));
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
-    if (d.t && d.t.length) ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
+
+    ctx.fillStyle = "#334155";
+    ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
+    ctx.fillText(`Frame ${activeIdx + 1}/${d.x.length}`, Math.round(26 * scale), Math.round(34 * scale));
+    if (d.t && d.t.length) {
+      const text = `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`;
+      const metrics = ctx.measureText(text);
+      ctx.fillText(text, w - metrics.width - Math.round(26 * scale), Math.round(34 * scale));
+    }
 
     return canvas;
   }
