@@ -34,6 +34,12 @@
   const elFrameYLabel = $("tool3FrameYLabel");
   const elFrameZLabel = $("tool3FrameZLabel");
   const elFrameTimeLabel = $("tool3FrameTimeLabel");
+  const elAxisXMin = $("tool3AxisXMin");
+  const elAxisXMax = $("tool3AxisXMax");
+  const elAxisYMin = $("tool3AxisYMin");
+  const elAxisYMax = $("tool3AxisYMax");
+  const elAxisZMin = $("tool3AxisZMin");
+  const elAxisZMax = $("tool3AxisZMax");
   const elFramesZipBtn = $("tool3FramesZipBtn");
   const elFramesZipDownload = $("tool3FramesZipDownload");
   const elFramesStatus = $("tool3FramesStatus");
@@ -87,6 +93,14 @@
     const n = parseInt(v, 10);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(lo, Math.min(hi, n));
+  }
+
+  function optionalFloat(v) {
+    if (v == null) return null;
+    const s = safeText(v);
+    if (!s) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 
   function yieldToUi() {
@@ -441,7 +455,12 @@
       const layout = {
         title: d.useTimeAxis ? `${d.yCol} vs ${d.xCol} with z = ${d.tCol}` : `${d.xCol}, ${d.yCol}, ${d.zCol} ordered by ${d.tCol}`,
         margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: build3DScene(d.xCol, d.yCol, zTitle),
+        scene: {
+          ...build3DScene(d.xCol, d.yCol, zTitle),
+          xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { title: zTitle, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+        },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
@@ -457,8 +476,8 @@
     const layout = {
       title: `${d.yCol} vs ${d.xCol} ordered by ${d.tCol}`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: d.xCol, automargin: true },
-      yaxis: { title: d.yCol, automargin: true },
+      xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+      yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
@@ -477,7 +496,12 @@
       const layout = {
         title: `3D return map: ${d.varCol}(n), ${d.varCol}(n+${d.lag}), ${d.tCol}`,
         margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
+        scene: {
+          ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
+          xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { title: d.tCol, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+        },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
@@ -520,8 +544,8 @@
     const layout = {
       title: `2D return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: `${d.varCol}(n)`, automargin: true },
-      yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1 },
+      xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+      yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
@@ -626,46 +650,26 @@
   }
 
   function drawBackground(ctx, w, h, title, scale = 1) {
-    const bg = ctx.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, "#ffffff");
-    bg.addColorStop(1, "#f8fafc");
-    ctx.fillStyle = bg;
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
-
-    const topGlow = ctx.createLinearGradient(0, 0, w, 0);
-    topGlow.addColorStop(0, "rgba(37,99,235,0.03)");
-    topGlow.addColorStop(0.5, "rgba(15,23,42,0.01)");
-    topGlow.addColorStop(1, "rgba(220,38,38,0.03)");
-    ctx.fillStyle = topGlow;
-    ctx.fillRect(0, 0, w, Math.round(72 * scale));
-
     ctx.fillStyle = "#0f172a";
     ctx.font = `700 ${Math.max(20, Math.round(22 * scale))}px Inter, Arial, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(title, Math.round(w / 2), Math.round(30 * scale));
+    ctx.fillText(title, Math.round(w / 2), Math.round(34 * scale));
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
   }
 
   function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale = 1) {
-    ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = Math.max(1, 1.2 * scale);
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
-    ctx.stroke();
-
-    ctx.fillStyle = "#6b7280";
-    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    for (let k = 0; k <= 4; k++) {
-      const frac = k / 4;
+    const majorTicks = 5;
+    ctx.save();
+    ctx.strokeStyle = "rgba(148,163,184,0.28)";
+    ctx.lineWidth = Math.max(0.8, 0.9 * scale);
+    for (let k = 0; k < majorTicks; k++) {
+      const frac = k / (majorTicks - 1);
       const xx = pad.l + frac * iw;
       const yy = pad.t + ih - frac * ih;
-      const xv = xmin + frac * (xmax - xmin);
-      const yv = ymin + frac * (ymax - ymin);
-      ctx.strokeStyle = "#f1f5f9";
       ctx.beginPath();
       ctx.moveTo(pad.l, yy);
       ctx.lineTo(pad.l + iw, yy);
@@ -674,9 +678,33 @@
       ctx.moveTo(xx, pad.t);
       ctx.lineTo(xx, pad.t + ih);
       ctx.stroke();
-      ctx.fillText(formatTick(yv), Math.round(8 * scale), yy + Math.round(4 * scale));
-      ctx.fillText(formatTick(xv), Math.max(pad.l - Math.round(12 * scale), xx - Math.round(12 * scale)), pad.t + ih + Math.round(20 * scale));
     }
+
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = Math.max(1.25, 1.3 * scale);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "right";
+    for (let k = 0; k < majorTicks; k++) {
+      const frac = k / (majorTicks - 1);
+      const yy = pad.t + ih - frac * ih;
+      const yv = ymin + frac * (ymax - ymin);
+      ctx.fillText(formatTick(yv), pad.l - Math.round(12 * scale), yy + Math.round(4 * scale));
+    }
+    ctx.textAlign = "center";
+    for (let k = 0; k < majorTicks; k++) {
+      const frac = k / (majorTicks - 1);
+      const xx = pad.l + frac * iw;
+      const xv = xmin + frac * (xmax - xmin);
+      ctx.fillText(formatTick(xv), xx, pad.t + ih + Math.round(24 * scale));
+    }
+    ctx.restore();
   }
 
   function projectPoint3D(x, y, z, camera) {
@@ -690,14 +718,14 @@
     };
   }
 
-  function build3DProjectionScene(xs, ys, zs, width, height) {
-    const [xmin, xmax] = getMinMax(xs);
-    const [ymin, ymax] = getMinMax(ys);
-    const [zmin, zmax] = getMinMax(zs);
+  function build3DProjectionScene(xs, ys, zs, width, height, ranges = {}) {
+    const [xmin, xmax] = resolveAxisRange(xs, ranges.xMin, ranges.xMax);
+    const [ymin, ymax] = resolveAxisRange(ys, ranges.yMin, ranges.yMax);
+    const [zmin, zmax] = resolveAxisRange(zs, ranges.zMin, ranges.zMax);
     const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
-    const az = Math.PI / 4.7;
-    const el = Math.PI / 6.4;
-    const camera = { distance: 4.6 };
+    const az = Math.PI / 4.65;
+    const el = Math.PI / 6.3;
+    const camera = { distance: 4.8 };
 
     function rotatePoint(x, y, z) {
       const X = norm(x, xmin, xmax);
@@ -714,25 +742,24 @@
     const rotated = xs.map((x, i) => rotatePoint(x, ys[i], zs[i]));
     const projected = rotated.map((p) => projectPoint3D(p.x, p.y, p.z, camera));
 
-    const cubePoints = [];
-    for (const xv of [xmin, xmax]) {
-      for (const yv of [ymin, ymax]) {
-        for (const zv of [zmin, zmax]) {
-          const r = rotatePoint(xv, yv, zv);
-          const p = projectPoint3D(r.x, r.y, r.z, camera);
-          cubePoints.push(p);
-        }
-      }
-    }
+    const axisPointsRaw = {
+      origin: rotatePoint(xmin, ymin, zmin),
+      xEnd: rotatePoint(xmax, ymin, zmin),
+      yEnd: rotatePoint(xmin, ymax, zmin),
+      zEnd: rotatePoint(xmin, ymin, zmax)
+    };
+    const axisPointsProjected = Object.fromEntries(
+      Object.entries(axisPointsRaw).map(([k, p]) => [k, projectPoint3D(p.x, p.y, p.z, camera)])
+    );
 
     let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
-    for (const p of projected.concat(cubePoints)) {
+    for (const p of projected.concat(Object.values(axisPointsProjected))) {
       minPX = Math.min(minPX, p.x);
       maxPX = Math.max(maxPX, p.x);
       minPY = Math.min(minPY, p.y);
       maxPY = Math.max(maxPY, p.y);
     }
-    const pad = 0.14;
+    const pad = 0.16;
     const sx = (maxPX - minPX) || 1;
     const sy = (maxPY - minPY) || 1;
     minPX -= sx * pad;
@@ -749,58 +776,55 @@
       };
     }
 
-    const projectedCanvas = projected.map(toCanvas);
-    const corners = cubePoints.map(toCanvas);
-    const cornerMap = {
-      '000': corners[0], '001': corners[1], '010': corners[2], '011': corners[3],
-      '100': corners[4], '101': corners[5], '110': corners[6], '111': corners[7]
-    };
-
     return {
-      points: projectedCanvas,
-      cornerMap,
-      projectIndex(i) { return projectedCanvas[i]; },
-      axisCenter: toCanvas(projectPoint3D(...Object.values(rotatePoint((xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2)), camera))
+      points: projected.map(toCanvas),
+      axisPoints: Object.fromEntries(Object.entries(axisPointsProjected).map(([k, p]) => [k, toCanvas(p)])),
+      axisRanges: { xmin, xmax, ymin, ymax, zmin, zmax },
+      projectIndex(i) { return this.points[i]; }
     };
   }
 
-  function draw3DBoxAxes(ctx, scene, width, height, scale, labels) {
-    const edges = [
-      ['000','100'], ['000','010'], ['000','001'],
-      ['100','110'], ['100','101'],
-      ['010','110'], ['010','011'],
-      ['001','101'], ['001','011'],
-      ['110','111'], ['101','111'], ['011','111']
+  function draw3DAxesTripod(ctx, scene, scale, labels) {
+    const { origin, xEnd, yEnd, zEnd } = scene.axisPoints;
+    const axes = [
+      [origin, xEnd, "#2563eb", labels.xLabel, scene.axisRanges.xmin, scene.axisRanges.xmax],
+      [origin, yEnd, "#059669", labels.yLabel, scene.axisRanges.ymin, scene.axisRanges.ymax],
+      [origin, zEnd, "#dc2626", labels.zLabel, scene.axisRanges.zmin, scene.axisRanges.zmax]
     ];
-
     ctx.save();
-    ctx.lineWidth = Math.max(1.2, 1.4 * scale);
-    for (const [a, b] of edges) {
-      const p1 = scene.cornerMap[a], p2 = scene.cornerMap[b];
-      const avgDepth = ((p1.depth || 1) + (p2.depth || 1)) / 2;
-      ctx.strokeStyle = avgDepth < 1 ? 'rgba(148,163,184,0.5)' : 'rgba(100,116,139,0.85)';
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
-    }
-
-    const axisEdges = [
-      ['000','100','#2563eb', `x = ${labels.xLabel}`],
-      ['000','010','#059669', `y = ${labels.yLabel}`],
-      ['000','001','#dc2626', `z = ${labels.zLabel}`]
-    ];
     ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    for (const [a, b, color, text] of axisEdges) {
-      const p1 = scene.cornerMap[a], p2 = scene.cornerMap[b];
+    for (const [p1, p2, color, label, minV, maxV] of axes) {
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(2.2, 2.4 * scale);
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.stroke();
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const ux = dx / len;
+      const uy = dy / len;
+      const px = -uy;
+      const py = ux;
+      const ah = Math.max(8, 10 * scale);
+      ctx.beginPath();
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(p2.x - ux * ah + px * ah * 0.45, p2.y - uy * ah + py * ah * 0.45);
+      ctx.lineTo(p2.x - ux * ah - px * ah * 0.45, p2.y - uy * ah - py * ah * 0.45);
+      ctx.closePath();
       ctx.fillStyle = color;
-      ctx.fillText(text, p2.x + Math.round(8 * scale), p2.y - Math.round(4 * scale));
+      ctx.fill();
+
+      ctx.fillStyle = color;
+      ctx.textAlign = dx >= 0 ? "left" : "right";
+      ctx.fillText(label, p2.x + px * 10 * scale + (dx >= 0 ? 8 * scale : -8 * scale), p2.y + py * 10 * scale - 4 * scale);
+
+      ctx.fillStyle = "#475569";
+      ctx.textAlign = "center";
+      ctx.fillText(formatTick(minV), p1.x - px * 10 * scale, p1.y - py * 10 * scale + 4 * scale);
+      ctx.fillText(formatTick(maxV), p2.x + px * 16 * scale, p2.y + py * 16 * scale + 4 * scale);
     }
     ctx.restore();
   }
@@ -896,24 +920,82 @@
     };
   }
 
+  function getAxisScaleOverrides() {
+    return {
+      xMin: optionalFloat(elAxisXMin && elAxisXMin.value),
+      xMax: optionalFloat(elAxisXMax && elAxisXMax.value),
+      yMin: optionalFloat(elAxisYMin && elAxisYMin.value),
+      yMax: optionalFloat(elAxisYMax && elAxisYMax.value),
+      zMin: optionalFloat(elAxisZMin && elAxisZMin.value),
+      zMax: optionalFloat(elAxisZMax && elAxisZMax.value)
+    };
+  }
+
+  function resolveAxisRange(values, minOverride, maxOverride) {
+    let [lo, hi] = getMinMax(values);
+    if (Number.isFinite(minOverride)) lo = minOverride;
+    if (Number.isFinite(maxOverride)) hi = maxOverride;
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+    if (lo === hi) {
+      const pad = Math.abs(lo || 1) * 0.1 || 1;
+      return [lo - pad, hi + pad];
+    }
+    if (lo > hi) return [hi, lo];
+    return [lo, hi];
+  }
+
+  function drawFrameHeader(ctx, w, scale, leftText, rightText) {
+    ctx.save();
+    ctx.fillStyle = "#334155";
+    ctx.font = `600 ${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
+    if (leftText) ctx.fillText(leftText, Math.round(28 * scale), Math.round(34 * scale));
+    if (rightText) {
+      const metrics = ctx.measureText(rightText);
+      ctx.fillText(rightText, w - metrics.width - Math.round(28 * scale), Math.round(34 * scale));
+    }
+    ctx.restore();
+  }
+
+  function drawCenteredAxisLabel(ctx, text, x, y, scale) {
+    ctx.save();
+    ctx.fillStyle = "#111827";
+    ctx.font = `600 ${Math.max(13, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawVerticalAxisLabel(ctx, text, x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = "#111827";
+    ctx.font = `600 ${Math.max(13, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
   function render2DTimeFrame(d, idx, cfg, labels) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
-    const pad = { l: Math.round(60 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(48 * scale) };
+    const ranges = getAxisScaleOverrides();
+    const pad = { l: Math.round(108 * scale), r: Math.round(48 * scale), t: Math.round(96 * scale), b: Math.round(96 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const [xmin, xmax] = getMinMax(d.x);
-    const [ymin, ymax] = getMinMax(d.y);
+    const [xmin, xmax] = resolveAxisRange(d.x, ranges.xMin, ranges.xMax);
+    const [ymin, ymax] = resolveAxisRange(d.y, ranges.yMin, ranges.yMax);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
 
     drawBackground(ctx, w, h, labels.title, scale);
+    drawFrameHeader(ctx, w, scale, `Frame ${Math.max(0, Math.min(idx, d.x.length - 1)) + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[Math.max(0, Math.min(idx, d.x.length - 1))])}`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
-    ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
+    ctx.globalAlpha = 0.16;
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = Math.max(2.2, 2.4 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -925,7 +1007,7 @@
 
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = Math.max(3, 3 * scale);
+    ctx.lineWidth = Math.max(2.8, 3.0 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -934,23 +1016,14 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.52, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#374151";
-    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    ctx.fillText(labels.xLabel, w / 2 - Math.round(10 * scale), h - Math.round(12 * scale));
-    ctx.save();
-    ctx.translate(Math.round(16 * scale), h / 2 + Math.round(10 * scale));
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(labels.yLabel, 0, 0);
-    ctx.restore();
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
-    ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
-
+    drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
+    drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
     return canvas;
   }
 
@@ -959,39 +1032,40 @@
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
-    const pad = { l: Math.round(60 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(48 * scale) };
+    const ranges = getAxisScaleOverrides();
+    const pad = { l: Math.round(108 * scale), r: Math.round(48 * scale), t: Math.round(96 * scale), b: Math.round(96 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const all = d.x.concat(d.y);
-    const [xmin, xmax] = getMinMax(all);
-    const [ymin, ymax] = getMinMax(all);
+    const [xmin, xmax] = resolveAxisRange(d.x, ranges.xMin, ranges.xMax);
+    const [ymin, ymax] = resolveAxisRange(d.y, ranges.yMin, ranges.yMax);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
     drawBackground(ctx, w, h, labels.title, scale);
+    drawFrameHeader(ctx, w, scale, `Frame ${activeIdx + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
     ctx.save();
-    ctx.strokeStyle = "#9ca3af";
-    ctx.lineWidth = Math.max(1.5, 1.5 * scale);
-    ctx.setLineDash([Math.max(6, 6 * scale), Math.max(4, 4 * scale)]);
+    ctx.strokeStyle = "rgba(75,85,99,0.75)";
+    ctx.lineWidth = Math.max(1.2, 1.4 * scale);
+    ctx.setLineDash([Math.max(6, 7 * scale), Math.max(4, 4 * scale)]);
     ctx.beginPath();
     ctx.moveTo(xMap(xmin), yMap(xmin));
     ctx.lineTo(xMap(xmax), yMap(xmax));
     ctx.stroke();
     ctx.restore();
 
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.15;
     ctx.fillStyle = "#2563eb";
     for (let i = 0; i < d.x.length; i++) {
       ctx.beginPath();
-      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), Math.max(2.5, 2.5 * scale), 0, Math.PI * 2);
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), Math.max(2, 2.2 * scale), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
+    ctx.lineWidth = Math.max(2.4, 2.6 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]);
@@ -1000,23 +1074,14 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.52, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#374151";
-    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    ctx.fillText(labels.xLabel, w / 2 - Math.round(24 * scale), h - Math.round(12 * scale));
-    ctx.save();
-    ctx.translate(Math.round(16 * scale), h / 2 + Math.round(10 * scale));
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(labels.yLabel, 0, 0);
-    ctx.restore();
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
-    ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
-
+    drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
+    drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
     return canvas;
   }
 
@@ -1025,81 +1090,51 @@
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
-    const pad = { l: Math.round(70 * scale), r: Math.round(70 * scale), t: Math.round(62 * scale), b: Math.round(70 * scale) };
+    const ranges = getAxisScaleOverrides();
+    const pad = { l: Math.round(118 * scale), r: Math.round(118 * scale), t: Math.round(100 * scale), b: Math.round(100 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
     drawBackground(ctx, w, h, labels.title, scale);
-    const scene = build3DProjectionScene(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
+    drawFrameHeader(ctx, w, scale, `Frame ${activeIdx + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`);
+    const scene = build3DProjectionScene(d.x, d.y, d.z, iw, ih, ranges);
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
+    draw3DAxesTripod(ctx, scene, scale, labels);
 
-    draw3DBoxAxes(ctx, scene, iw, ih, scale, labels);
-
-    ctx.globalAlpha = 0.13;
+    ctx.globalAlpha = 0.12;
     ctx.strokeStyle = "#93c5fd";
-    ctx.lineWidth = Math.max(2.2, 2.4 * scale);
+    ctx.lineWidth = Math.max(2.0, 2.2 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const p = scene.projectIndex(i);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    const gradient = ctx.createLinearGradient(0, 0, iw, ih);
-    gradient.addColorStop(0, "#2563eb");
-    gradient.addColorStop(1, "#0f172a");
-    ctx.strokeStyle = gradient;
-    ctx.lineWidth = Math.max(3, 3.4 * scale);
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = Math.max(2.7, 3.0 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const p = scene.projectIndex(i);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
-
-    for (let i = Math.max(0, activeIdx - 14); i <= activeIdx; i++) {
-      const p = scene.projectIndex(i);
-      const fade = (i - Math.max(0, activeIdx - 14) + 1) / Math.min(15, activeIdx + 1);
-      ctx.fillStyle = `rgba(37,99,235,${0.18 + 0.42 * fade})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(1.6, 1.7 * scale) * (0.7 + 0.5 * fade), 0, Math.PI * 2);
-      ctx.fill();
-    }
 
     const point = scene.projectIndex(activeIdx);
     const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
-    const halo = ctx.createRadialGradient(point.x, point.y, Math.max(2, ps * 0.2), point.x, point.y, Math.max(8, ps * 1.15));
-    halo.addColorStop(0, "rgba(220,38,38,0.45)");
-    halo.addColorStop(1, "rgba(220,38,38,0)");
-    ctx.fillStyle = halo;
+    ctx.fillStyle = "rgba(220,38,38,0.18)";
     ctx.beginPath();
-    ctx.arc(point.x, point.y, Math.max(8, ps * 1.2), 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, Math.max(10, ps * 1.15), 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(point.x, point.y, ps * 0.58, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = Math.max(1.4, 1.6 * scale);
-    ctx.stroke();
     ctx.restore();
-
-    ctx.fillStyle = "#334155";
-    ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    ctx.fillText(`Frame ${activeIdx + 1}/${d.x.length}`, Math.round(26 * scale), Math.round(34 * scale));
-    if (d.t && d.t.length) {
-      const text = `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`;
-      const metrics = ctx.measureText(text);
-      ctx.fillText(text, w - metrics.width - Math.round(26 * scale), Math.round(34 * scale));
-    }
-
     return canvas;
   }
 
@@ -1497,7 +1532,7 @@
     });
   });
 
-  [elLag, elPointSize].forEach((el) => {
+  [elLag, elPointSize, elAxisXMin, elAxisXMax, elAxisYMin, elAxisYMax, elAxisZMin, elAxisZMax].forEach((el) => {
     if (!el) return;
     el.addEventListener("input", () => renderCurrentPlot());
     el.addEventListener("change", () => renderCurrentPlot());

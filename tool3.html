@@ -230,6 +230,35 @@
                   <input class="tool3-input" id="tool3FrameTimeLabel" type="text" placeholder="Default: selected time column" />
                 </label>
               </div>
+              <div class="tool3-grid-3">
+                <label class="tool3-label">
+                  <span>X min</span>
+                  <input class="tool3-number" id="tool3AxisXMin" type="number" step="any" placeholder="Auto" />
+                </label>
+                <label class="tool3-label">
+                  <span>X max</span>
+                  <input class="tool3-number" id="tool3AxisXMax" type="number" step="any" placeholder="Auto" />
+                </label>
+                <label class="tool3-label">
+                  <span>Y min</span>
+                  <input class="tool3-number" id="tool3AxisYMin" type="number" step="any" placeholder="Auto" />
+                </label>
+              </div>
+              <div class="tool3-grid-3">
+                <label class="tool3-label">
+                  <span>Y max</span>
+                  <input class="tool3-number" id="tool3AxisYMax" type="number" step="any" placeholder="Auto" />
+                </label>
+                <label class="tool3-label">
+                  <span>Z min</span>
+                  <input class="tool3-number" id="tool3AxisZMin" type="number" step="any" placeholder="Auto" />
+                </label>
+                <label class="tool3-label">
+                  <span>Z max</span>
+                  <input class="tool3-number" id="tool3AxisZMax" type="number" step="any" placeholder="Auto" />
+                </label>
+              </div>
+              <div class="tool3-note">Leave any axis limit blank to keep it automatic. For 2D plots, only X and Y limits are used.</div>
               <div class="tool3-actions">
                 <button class="btn primary" id="tool3FramesZipBtn" type="button">Render frames ZIP</button>
                 <a class="btn" id="tool3FramesZipDownload" download="plot_frames.zip" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download frames ZIP</a>
