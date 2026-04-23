@@ -1035,18 +1035,16 @@
   function lzwEncodeGIF(indices, minCodeSize) {
     const CLEAR = 1 << minCodeSize;
     const EOI = CLEAR + 1;
-    let nextCode = EOI + 1;
-    let codeSize = minCodeSize + 1;
-    let dict = new Map();
+    const CHUNK_RESET = 200;
 
-    function resetDict() {
-      dict = new Map();
-      nextCode = EOI + 1;
-      codeSize = minCodeSize + 1;
-    }
+    let codeSize = minCodeSize + 1;
+    let nextCode = EOI + 1;
+    let havePrev = false;
+    let runSinceClear = 0;
 
     const bytes = [];
-    let cur = 0, bits = 0;
+    let cur = 0;
+    let bits = 0;
 
     function writeCode(code) {
       cur |= (code << bits);
@@ -1058,31 +1056,38 @@
       }
     }
 
-    resetDict();
-    writeCode(CLEAR);
-
-    let prefix = String(indices[0]);
-    for (let i = 1; i < indices.length; i++) {
-      const k = indices[i];
-      const key = prefix + "," + k;
-      if (dict.has(key)) {
-        prefix = key;
-      } else {
-        const outCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
-        writeCode(outCode);
-        if (nextCode < 4096) {
-          dict.set(key, nextCode++);
-          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
-        } else {
-          writeCode(CLEAR);
-          resetDict();
-        }
-        prefix = String(k);
-      }
+    function resetStreamState() {
+      codeSize = minCodeSize + 1;
+      nextCode = EOI + 1;
+      havePrev = false;
+      runSinceClear = 0;
     }
 
-    const finalCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
-    writeCode(finalCode);
+    writeCode(CLEAR);
+    resetStreamState();
+
+    for (let i = 0; i < indices.length; i++) {
+      if (runSinceClear >= CHUNK_RESET) {
+        writeCode(CLEAR);
+        resetStreamState();
+      }
+
+      writeCode(indices[i]);
+
+      if (havePrev) {
+        if (nextCode < 4096) {
+          nextCode += 1;
+          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize += 1;
+        } else {
+          writeCode(CLEAR);
+          resetStreamState();
+        }
+      }
+
+      havePrev = true;
+      runSinceClear += 1;
+    }
+
     writeCode(EOI);
     if (bits > 0) bytes.push(cur & 0xFF);
     return Uint8Array.from(bytes);
@@ -1164,10 +1169,7 @@
       setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
       return;
     }
-    if (!window.GIF) {
-      setMergeStatus("GIF.js did not load. Hard refresh the page and try again.");
-      return;
-    }
+
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1182,69 +1184,49 @@
       const entries = Object.values(zip.files)
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-      if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
 
-      setMergeStatus(`Reading ${entries.length} frame images…`);
-      const images = [];
+      if (!entries.length) throw new Error("No PNG/JPG/WebP frames found in the ZIP.");
+
+      const frameCanvases = [];
+      let width = 0;
+      let height = 0;
+
       for (let i = 0; i < entries.length; i++) {
+        setMergeStatus(`Loading frame ${i + 1} of ${entries.length}…`);
         const blob = await entries[i].async("blob");
-        images.push(await blobToImage(blob));
-        setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
+        const img = await blobToImage(blob);
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!width && !height) {
+          width = w;
+          height = h;
+        } else if (w !== width || h !== height) {
+          throw new Error("All frames in the ZIP must have the same image size.");
+        }
+        const cvs = document.createElement("canvas");
+        cvs.width = width;
+        cvs.height = height;
+        const ctx = cvs.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        frameCanvases.push(cvs);
         await yieldToUi();
       }
 
-      const width = images[0].naturalWidth || images[0].width;
-      const height = images[0].naturalHeight || images[0].height;
-      for (let i = 1; i < images.length; i++) {
-        const w = images[i].naturalWidth || images[i].width;
-        const h = images[i].naturalHeight || images[i].height;
-        if (w !== width || h !== height) {
-          throw new Error("All frames in the ZIP must have the same image size.");
-        }
-      }
-
       const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
-      const delayMs = Math.max(50, Math.round(1000 / fps));
-
-      const gif = new window.GIF({
-        workers: 2,
-        quality: 10,
-        width,
-        height,
-        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js",
-        background: "#ffffff"
-      });
+      const delayCs = Math.max(2, Math.round(100 / fps));
 
       setMergeStatus("Encoding GIF…");
-      for (let i = 0; i < images.length; i++) {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(images[i], 0, 0, width, height);
-        gif.addFrame(canvas, { copy: true, delay: delayMs });
-        if (i % 2 === 0 || i === images.length - 1) {
-          setMergeStatus(`Prepared frame ${i + 1} of ${images.length}…`);
-          await yieldToUi();
-        }
-      }
-
-      const blob = await new Promise((resolve, reject) => {
-        gif.on("progress", (p) => {
-          const pct = Math.max(0, Math.min(100, Math.round(p * 100)));
-          setMergeStatus(`Encoding GIF… ${pct}%`);
-        });
-        gif.on("finished", resolve);
-        gif.on("abort", () => reject(new Error("GIF encoding was aborted.")));
-        gif.render();
+      const blob = encodeAnimatedGif(frameCanvases, width, height, delayCs, (cur, total) => {
+        const pct = Math.max(0, Math.min(100, Math.round(((cur + 1) / total) * 100)));
+        setMergeStatus(`Encoding GIF… ${pct}%`);
       });
 
       state.mergeGifUrl = URL.createObjectURL(blob);
-      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" style="max-width:100%; height:auto;" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps using GIF.js.`);
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
     } catch (err) {
       console.error(err);
       setMergePreview("Could not merge that frame ZIP.");
@@ -1299,7 +1281,7 @@
   setFramesZipDownloadEnabled(false);
   setMergeGifDownloadEnabled(false);
   setFramesStatus("Render the selected plot into PNG frames and download them as a ZIP file.");
-  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
+  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here. This version uses the built-in safe encoder.");
   renderPreviewTable();
   updatePanels();
   renderCurrentPlot();
