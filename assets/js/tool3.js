@@ -229,10 +229,8 @@
   }
 
   function getVariableOptions() {
-    const timeGuess = elTimeCol && elTimeCol.value ? elTimeCol.value : guessTimeColumn();
     const numeric = state.numericHeaders.length ? state.numericHeaders.slice() : state.headers.slice();
-    const nonTime = numeric.filter((h) => h !== timeGuess);
-    return nonTime.length ? nonTime : numeric;
+    return numeric.length ? numeric : state.headers.slice();
   }
 
   function renderVariableBadges() {
@@ -261,13 +259,19 @@
 
   function refreshControls() {
     const timeGuess = guessTimeColumn();
-    optionList(elTimeCol, state.headers, timeGuess);
+    const prevTime = elTimeCol && elTimeCol.value ? elTimeCol.value : "";
+    const prevX = elX && elX.value ? elX.value : "";
+    const prevY = elY && elY.value ? elY.value : "";
+    const prevZ = elZ && elZ.value ? elZ.value : "";
+    const prevReturnVar = elReturnVar && elReturnVar.value ? elReturnVar.value : "";
+
+    optionList(elTimeCol, state.headers, prevTime || timeGuess);
 
     const vars = getVariableOptions();
-    optionList(elX, vars, vars[0] || "");
-    optionList(elY, vars, vars[1] || vars[0] || "");
-    optionList(elZ, vars, vars[2] || vars[0] || "");
-    optionList(elReturnVar, vars, vars[0] || "");
+    optionList(elX, vars, prevX || vars[0] || "");
+    optionList(elY, vars, prevY || vars[1] || vars[0] || "");
+    optionList(elZ, vars, prevZ || vars[2] || vars[0] || "");
+    optionList(elReturnVar, vars, prevReturnVar || vars[0] || "");
 
     if (elFileMeta) elFileMeta.textContent = state.fileName || "—";
     if (elNumericMeta) elNumericMeta.textContent = state.numericHeaders.length ? `${state.numericHeaders.length} detected` : "0 detected";
