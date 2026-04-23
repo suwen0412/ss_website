@@ -1,43 +1,52 @@
 (function () {
   const $ = (id) => document.getElementById(id);
+  const selValue = (el, fallback = "") =>
+    el && typeof el.value !== "undefined" ? el.value : fallback;
 
   const elFile = $("tool3File");
-  const elLoadExampleBtn = $("tool3LoadExampleBtn");
   const elSheet = $("tool3Sheet");
-  const elPlotType = $("tool3PlotType");
-  const elShiftPanel = $("tool3ShiftPanel");
-  const elTrajPanel = $("tool3TrajectoryPanel");
-  const elTimeShift = $("tool3TimeShift");
-  const elShiftVar = $("tool3ShiftVar");
-  const elSkip = $("tool3Skip");
-  const elLagWindow = $("tool3LagWindow");
-  const elLagMode = $("tool3LagMode");
-  const elTimeTraj = $("tool3TimeTraj");
-  const elMode = $("tool3Mode");
+  const elTimeCol = $("tool3TimeCol");
+  const elLoadStatus = $("tool3LoadStatus");
+  const elFileMeta = $("tool3FileMeta");
+  const elNumericMeta = $("tool3NumericMeta");
+  const elVars = $("tool3Vars");
+
+  const elFrameDim = $("tool3FrameDim");
+  const elMapType = $("tool3MapType");
+  const elSummary = $("tool3Summary");
+
+  const elTimeMapControls = $("tool3TimeMapControls");
+  const elUseTimeAxisWrap = $("tool3UseTimeAxisWrap");
+  const elUseTimeAxis = $("tool3UseTimeAxis");
   const elX = $("tool3X");
   const elY = $("tool3Y");
   const elZ = $("tool3Z");
   const elZWrap = $("tool3ZWrap");
-  const elGifQuality = $("tool3GifQuality");
+
+  const elReturnControls = $("tool3ReturnControls");
+  const elReturnVar = $("tool3ReturnVar");
+  const elLag = $("tool3Lag");
+  const elReturnNote = $("tool3ReturnNote");
+
   const elFrames = $("tool3Frames");
-  const elFps = $("tool3Fps");
   const elPointSize = $("tool3PointSize");
   const elFramesZipBtn = $("tool3FramesZipBtn");
   const elFramesZipDownload = $("tool3FramesZipDownload");
-  const elGifStatus = $("tool3GifStatus");
-  const elGifPreview = $("tool3GifPreview");
+  const elFramesStatus = $("tool3FramesStatus");
+
+  const elPlot = $("tool3Plot");
+  const elMeta = $("tool3Meta");
+  const elPreviewHead = $("tool3PreviewHead");
+  const elPreviewBody = $("tool3PreviewBody");
+
   const elMergeZipFile = $("tool3MergeZipFile");
   const elMergeFps = $("tool3MergeFps");
   const elMergeGifBtn = $("tool3MergeGifBtn");
   const elMergeGifDownload = $("tool3MergeGifDownload");
   const elMergeStatus = $("tool3MergeStatus");
   const elMergePreview = $("tool3MergePreview");
-  const elLoadStatus = $("tool3LoadStatus");
-  const elSummary = $("tool3Summary");
-  const elPlot = $("tool3Plot");
-  const elMeta = $("tool3Meta");
 
-  if (!elFile || !elSheet || !elPlot) return;
+  if (!elFile || !elSheet || !elPlot || !window.XLSX || !window.Plotly) return;
 
   const state = {
     workbook: null,
@@ -76,61 +85,42 @@
     return Math.max(lo, Math.min(hi, n));
   }
 
-  function parseCsvLine(line) {
-    const out = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQuotes) {
-        if (ch === '"') {
-          if (line[i + 1] === '"') { cur += '"'; i += 1; }
-          else inQuotes = false;
-        } else cur += ch;
-      } else if (ch === ',') {
-        out.push(cur);
-        cur = "";
-      } else if (ch === '"') {
-        inQuotes = true;
-      } else cur += ch;
-    }
-    out.push(cur);
-    return out;
+  function yieldToUi() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  function parseCsvMatrix(text) {
-    const cleaned = String(text || "")
-      .replace(/^\uFEFF/, "")
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n");
-    const lines = cleaned.split("\n");
-    return lines.filter((line) => line !== "").map(parseCsvLine);
+  function setFramesStatus(msg) {
+    if (elFramesStatus) elFramesStatus.textContent = msg;
   }
 
-  function getPlotSize() {
-    const width = Math.max(520, Math.floor(elPlot.clientWidth || 920));
-    const height = Math.max(420, Math.floor(elPlot.clientHeight || 620));
-    return { width, height };
+  function setMergeStatus(msg) {
+    if (elMergeStatus) elMergeStatus.textContent = msg;
   }
 
-  function setPlotCanvas(canvas) {
-    if (!canvas || !elPlot) return;
-    elPlot.innerHTML = "";
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    elPlot.appendChild(canvas);
+  function setMergePreview(html) {
+    if (elMergePreview) elMergePreview.innerHTML = html;
   }
 
-  function setPlotPlaceholder(message) {
-    if (!elPlot) return;
-    elPlot.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#6b7280;font-size:18px;text-align:center;padding:20px;">${escapeHtml(message)}</div>`;
+  function setMeta(msg) {
+    if (elMeta) elMeta.textContent = msg;
   }
 
-  function setLoadStatus(msg) { if (elLoadStatus) elLoadStatus.textContent = msg; }
-  function setGifStatus(msg) { if (elGifStatus) elGifStatus.textContent = msg; }
-  function setMeta(msg) { if (elMeta) elMeta.textContent = msg; }
-  function setGifPreview(html) { if (elGifPreview) elGifPreview.innerHTML = html; }
+  function setLoadStatus(msg) {
+    if (elLoadStatus) elLoadStatus.textContent = msg;
+  }
+
+  function revokeObjectUrl(key) {
+    if (state[key] && state[key].startsWith("blob:")) URL.revokeObjectURL(state[key]);
+    state[key] = "";
+  }
+
+  function revokeFrameZipUrl() {
+    revokeObjectUrl("frameZipUrl");
+  }
+
+  function revokeMergeGifUrl() {
+    revokeObjectUrl("mergeGifUrl");
+  }
 
   function setDownloadLink(linkEl, enabled, href, filename) {
     if (!linkEl) return;
@@ -156,30 +146,6 @@
     setDownloadLink(elMergeGifDownload, enabled, href, filename);
   }
 
-  function revokeObjectUrl(key) {
-    if (state[key] && state[key].startsWith("blob:")) URL.revokeObjectURL(state[key]);
-    state[key] = "";
-  }
-
-  function revokeFrameZipUrl() {
-    revokeObjectUrl("frameZipUrl");
-  }
-
-  function revokeMergeGifUrl() {
-    revokeObjectUrl("mergeGifUrl");
-  }
-
-  function setMergeStatus(msg) { if (elMergeStatus) elMergeStatus.textContent = msg; }
-  function setMergePreview(html) { if (elMergePreview) elMergePreview.innerHTML = html; }
-
-  function isLag3D() {
-    return !!(elLagMode && elLagMode.value === "3d");
-  }
-
-  function yieldToUi() {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
-
   function uniqueHeaders(row0) {
     const used = new Map();
     return row0.map((raw, i) => {
@@ -197,7 +163,7 @@
       return;
     }
     const current = selectEl.value;
-    selectEl.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+    selectEl.innerHTML = values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
     if (preferred && values.includes(preferred)) selectEl.value = preferred;
     else if (current && values.includes(current)) selectEl.value = current;
     else selectEl.value = values[0];
@@ -211,15 +177,19 @@
       state.numericHeaders = [];
       return;
     }
+
     const headers = uniqueHeaders(matrix[0]);
     const rows = matrix.slice(1).map((r) => {
       const obj = {};
-      headers.forEach((h, i) => { obj[h] = r[i]; });
+      headers.forEach((h, i) => {
+        obj[h] = r[i];
+      });
       return obj;
-    }).filter((obj) => Object.values(obj).some((v) => safeText(v) !== ""));
+    }).filter((row) => Object.values(row).some((v) => safeText(v) !== ""));
 
     const numericHeaders = headers.filter((h) => {
-      let valid = 0, numeric = 0;
+      let valid = 0;
+      let numeric = 0;
       for (const row of rows) {
         const raw = row[h];
         if (safeText(raw) === "") continue;
@@ -239,11 +209,6 @@
     if (!state.workbook || !name) return;
     const ws = state.workbook.Sheets[name];
     if (!ws) return;
-    if (ws.__matrix) {
-      parseMatrixToState(name, ws.__matrix);
-      return;
-    }
-    if (!window.XLSX) return;
     const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
     parseMatrixToState(name, matrix);
   }
@@ -259,19 +224,52 @@
     return partial || state.headers[0] || "";
   }
 
+  function getVariableOptions() {
+    const timeGuess = selValue(elTimeCol) || guessTimeColumn();
+    const numeric = state.numericHeaders.length ? state.numericHeaders.slice() : state.headers.slice();
+    const nonTime = numeric.filter((h) => h !== timeGuess);
+    return nonTime.length ? nonTime : numeric;
+  }
+
+  function renderVariableBadges() {
+    if (!elVars) return;
+    const vars = getVariableOptions();
+    if (!vars.length) {
+      elVars.innerHTML = '<span class="tool3-subtle">No numeric variables detected yet.</span>';
+      return;
+    }
+    elVars.innerHTML = vars.map((v) => `<span class="tool3-chip">${escapeHtml(v)}</span>`).join("");
+  }
+
+  function renderPreviewTable() {
+    if (!elPreviewHead || !elPreviewBody) return;
+    if (!state.headers.length || !state.rows.length) {
+      elPreviewHead.innerHTML = "";
+      elPreviewBody.innerHTML = '<tr><td style="padding:14px; color:#6b7280;">Upload a file to see the first 5 rows here.</td></tr>';
+      return;
+    }
+    elPreviewHead.innerHTML = `<tr>${state.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr>`;
+    const previewRows = state.rows.slice(0, 5);
+    elPreviewBody.innerHTML = previewRows.map((row) => {
+      return `<tr>${state.headers.map((h) => `<td>${escapeHtml(row[h])}</td>`).join("")}</tr>`;
+    }).join("");
+  }
+
   function refreshControls() {
     const timeGuess = guessTimeColumn();
-    optionList(elTimeShift, state.headers, timeGuess);
-    optionList(elTimeTraj, state.headers, timeGuess);
+    optionList(elTimeCol, state.headers, timeGuess);
 
-    const numeric = state.numericHeaders.length ? state.numericHeaders : state.headers;
-    const nonTime = numeric.filter((h) => h !== timeGuess);
-    const vars = nonTime.length ? nonTime : numeric;
-
-    optionList(elShiftVar, vars, vars[0] || "");
+    const vars = getVariableOptions();
     optionList(elX, vars, vars[0] || "");
     optionList(elY, vars, vars[1] || vars[0] || "");
     optionList(elZ, vars, vars[2] || vars[0] || "");
+    optionList(elReturnVar, vars, vars[0] || "");
+
+    if (elFileMeta) elFileMeta.textContent = state.fileName || "—";
+    if (elNumericMeta) elNumericMeta.textContent = state.numericHeaders.length ? `${state.numericHeaders.length} detected` : "0 detected";
+
+    renderVariableBadges();
+    renderPreviewTable();
 
     setLoadStatus(
       state.rows.length
@@ -286,31 +284,20 @@
 
     if (ext === "csv" || ext === "txt") {
       const text = await file.text();
-      state.workbook = null;
-      const matrix = parseCsvMatrix(text);
-      elSheet.innerHTML = '<option value="CSV data">CSV data</option>';
-      elSheet.value = "CSV data";
-      parseMatrixToState("CSV data", matrix);
-      refreshControls();
-      renderCurrentPlot();
-      return;
+      state.workbook = XLSX.read(text, { type: "string" });
+    } else {
+      const buffer = await file.arrayBuffer();
+      state.workbook = XLSX.read(buffer, { type: "array" });
     }
 
-    if (!window.XLSX) {
-      throw new Error("The Excel reader did not load on this page. Use Load built-in example, or save your file as CSV and upload that instead.");
-    }
-
-    const buffer = await file.arrayBuffer();
-    state.workbook = XLSX.read(buffer, { type: "array" });
-
-    const sheets = (state.workbook && state.workbook.SheetNames) ? state.workbook.SheetNames : [];
+    const sheets = state.workbook && state.workbook.SheetNames ? state.workbook.SheetNames : [];
     if (!sheets.length) {
       elSheet.innerHTML = '<option value="">No sheets found</option>';
       state.sheetName = "";
       state.headers = [];
       state.rows = [];
       state.numericHeaders = [];
-      setLoadStatus("This file did not contain any readable sheets.");
+      refreshControls();
       renderCurrentPlot();
       return;
     }
@@ -319,79 +306,109 @@
     elSheet.value = sheets[0];
     parseSheet(sheets[0]);
     refreshControls();
+    updatePanels();
     renderCurrentPlot();
   }
 
-  async function loadBuiltInExample() {
-    setLoadStatus("Loading built-in example…");
-    const res = await fetch("assets/data/toolkit3_example.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("Could not load the built-in example data.");
-    const payload = await res.json();
-    const sheetNames = Object.keys(payload);
-    if (!sheetNames.length) throw new Error("Built-in example data is empty.");
-    state.workbook = { Sheets: {}, SheetNames: sheetNames.slice() };
-    state.fileName = "Built-in example";
-    sheetNames.forEach((name) => {
-      state.workbook.Sheets[name] = { __matrix: payload[name] };
-    });
-    elSheet.innerHTML = sheetNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-    elSheet.value = sheetNames[0];
-    parseMatrixToState(sheetNames[0], payload[sheetNames[0]] || []);
-    refreshControls();
-    renderCurrentPlot();
-    setLoadStatus(`Loaded ${state.rows.length} rows from “${state.sheetName}”.`);
-  }
-
-  function getLagData() {
-    const tCol = elTimeShift.value;
-    const yCol = elShiftVar.value;
-    const skip = clampInt(elSkip.value, 1, 100000, 1);
-
-    const timeVals = [];
-    const signal = [];
-    for (let i = 0; i < state.rows.length; i++) {
-      const yv = num(state.rows[i][yCol]);
-      const tvRaw = state.rows[i][tCol];
-      const tvNum = num(tvRaw);
-      if (!Number.isFinite(yv)) continue;
-      signal.push(yv);
-      timeVals.push(Number.isFinite(tvNum) ? tvNum : i);
-    }
-
-    const n = Math.max(0, signal.length - skip);
-    const x = [], y = [], t = [];
-    for (let i = 0; i < n; i++) {
-      x.push(signal[i]);
-      y.push(signal[i + skip]);
-      t.push(timeVals[i + skip]);
-    }
-
-    return { tCol, yCol, skip, x, y, t, signalLength: signal.length };
-  }
-
-  function getTrajectoryData() {
-    const mode = elMode.value;
-    const xCol = elX.value, yCol = elY.value, zCol = elZ.value, tCol = elTimeTraj.value;
+  function orderedRowsUsingTime(tCol, neededCols) {
     const pts = [];
-    for (const row of state.rows) {
-      const xv = num(row[xCol]);
-      const yv = num(row[yCol]);
-      const zv = num(row[zCol]);
-      const tvRaw = row[tCol];
-      const tvNum = num(tvRaw);
-      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
-      if (mode === "3d" && !Number.isFinite(zv)) continue;
-      pts.push({ x: xv, y: yv, z: zv, t: tvRaw, tSort: Number.isFinite(tvNum) ? tvNum : pts.length });
+    for (let i = 0; i < state.rows.length; i++) {
+      const row = state.rows[i];
+      const obj = { rawTime: row[tCol], tSort: i };
+      const tv = num(row[tCol]);
+      if (Number.isFinite(tv)) obj.tSort = tv;
+      let ok = true;
+      for (const c of neededCols) {
+        const val = num(row[c]);
+        if (!Number.isFinite(val)) {
+          ok = false;
+          break;
+        }
+        obj[c] = val;
+      }
+      if (ok) pts.push(obj);
     }
     pts.sort((a, b) => a.tSort - b.tSort);
-    const out = { mode, xCol, yCol, zCol, tCol, x: [], y: [], z: [], t: [] };
-    for (const p of pts) {
-      out.x.push(p.x);
-      out.y.push(p.y);
-      if (mode === "3d") out.z.push(p.z);
-      out.t.push(p.t);
+    return pts;
+  }
+
+  function getTimeMapData() {
+    const frameDim = selValue(elFrameDim, "2d");
+    const tCol = selValue(elTimeCol) || guessTimeColumn();
+    const xCol = selValue(elX);
+    const yCol = selValue(elY);
+    const useTimeAxis = frameDim === "3d" && selValue(elUseTimeAxis, "yes") === "yes";
+
+    const neededCols = [xCol, yCol].filter(Boolean);
+    let zCol = "";
+    if (frameDim === "3d" && !useTimeAxis) {
+      zCol = selValue(elZ);
+      if (zCol) neededCols.push(zCol);
+    }
+
+    const pts = orderedRowsUsingTime(tCol, neededCols);
+    const out = {
+      mapType: "time",
+      frameDim,
+      useTimeAxis,
+      tCol,
+      xCol,
+      yCol,
+      zCol,
+      x: [],
+      y: [],
+      z: [],
+      t: []
+    };
+
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      out.x.push(p[xCol]);
+      out.y.push(p[yCol]);
+      out.t.push(Number.isFinite(num(p.rawTime)) ? num(p.rawTime) : i);
+      if (frameDim === "3d") {
+        if (useTimeAxis) out.z.push(Number.isFinite(num(p.rawTime)) ? num(p.rawTime) : i);
+        else out.z.push(p[zCol]);
+      }
+    }
+
+    return out;
+  }
+
+  function getReturnMapData() {
+    const frameDim = selValue(elFrameDim, "2d");
+    const tCol = selValue(elTimeCol) || guessTimeColumn();
+    const varCol = selValue(elReturnVar);
+    const lag = clampInt(selValue(elLag, 1), 1, 100000, 1);
+    const pts = orderedRowsUsingTime(tCol, [varCol].filter(Boolean));
+
+    const signal = pts.map((p) => p[varCol]);
+    const times = pts.map((p, i) => Number.isFinite(num(p.rawTime)) ? num(p.rawTime) : i);
+    const n = Math.max(0, signal.length - lag);
+    const out = {
+      mapType: "return",
+      frameDim,
+      tCol,
+      varCol,
+      lag,
+      x: [],
+      y: [],
+      z: [],
+      t: []
+    };
+
+    for (let i = 0; i < n; i++) {
+      out.x.push(signal[i]);
+      out.y.push(signal[i + lag]);
+      out.t.push(times[i]);
+      if (frameDim === "3d") out.z.push(times[i]);
     }
     return out;
+  }
+
+  function getCurrentSpec() {
+    if (selValue(elMapType, "time") === "return") return getReturnMapData();
+    return getTimeMapData();
   }
 
   function build3DScene(xTitle, yTitle, zTitle) {
@@ -405,176 +422,172 @@
     };
   }
 
-  function renderShiftPreviewCanvas(d) {
-    const size = getPlotSize();
-    if (isLag3D()) return renderLag3DGifFrame(d, Math.max(0, d.x.length - 1), { width: size.width, height: size.height });
-    const canvas = createCanvas(size), ctx = canvas.getContext("2d");
-    const w = canvas.width, h = canvas.height;
-    const pad = { l: 60, r: 24, t: 50, b: 48 };
-    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const all = d.x.concat(d.y);
-    const [xmin, xmax] = getMinMax(all);
-    const [ymin, ymax] = getMinMax(all);
-    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
-    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
-    drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
-    ctx.save();
-    ctx.strokeStyle = "#9ca3af";
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(xMap(xmin), yMap(xmin));
-    ctx.lineTo(xMap(xmax), yMap(xmax));
-    ctx.stroke();
-    ctx.restore();
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) {
-      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
-      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    if (d.x.length) {
-      ctx.fillStyle = "#dc2626";
-      ctx.beginPath();
-      ctx.arc(xMap(d.x[d.x.length - 1]), yMap(d.y[d.y.length - 1]), ps * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`${d.yCol}(n)`, w / 2 - 24, h - 12);
-    ctx.save();
-    ctx.translate(16, h / 2 + 10);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.yCol}(n+${d.skip})`, 0, 0);
-    ctx.restore();
-    return canvas;
-  }
-
-  function renderTrajectoryPreviewCanvas(d) {
-    const size = getPlotSize();
-    if (d.mode === "3d") return renderTrajectory3DGifFrame(d, Math.max(0, d.x.length - 1), { width: size.width, height: size.height });
-    const canvas = createCanvas(size), ctx = canvas.getContext("2d");
-    const w = canvas.width, h = canvas.height;
-    const pad = { l: 60, r: 24, t: 50, b: 48 };
-    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const [xmin, xmax] = getMinMax(d.x), [ymin, ymax] = getMinMax(d.y);
-    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
-    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
-    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.8;
-    ctx.beginPath();
-    for (let i = 0; i < d.x.length; i++) {
-      const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
-      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    if (d.x.length) {
-      ctx.fillStyle = "#dc2626";
-      ctx.beginPath();
-      ctx.arc(xMap(d.x[d.x.length - 1]), yMap(d.y[d.y.length - 1]), ps * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
-    ctx.save();
-    ctx.translate(16, h / 2 + 10);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.yCol}`, 0, 0);
-    ctx.restore();
-    return canvas;
-  }
-
-  function renderShiftPlot() {
-    const d = getLagData();
-    if (!d.x.length) {
-      setPlotPlaceholder("No valid lag-plot points were found in the selected columns.");
-      setMeta("Choose numeric columns to preview your lag plot.");
+  function renderTimePreview(d) {
+    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
+    if (d.frameDim === "3d") {
+      const zTitle = d.useTimeAxis ? d.tCol : d.zCol;
+      const traces = [
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Time-dependent path", line: { width: 5 } },
+        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
+      ];
+      const layout = {
+        title: d.useTimeAxis ? `${d.yCol} vs ${d.xCol} with z = ${d.tCol}` : `${d.xCol}, ${d.yCol}, ${d.zCol} ordered by ${d.tCol}`,
+        margin: { l: 10, r: 10, t: 56, b: 10 },
+        scene: build3DScene(d.xCol, d.yCol, zTitle),
+        legend: { orientation: "h", y: 1.06 },
+        paper_bgcolor: "#fff"
+      };
+      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+      setMeta(`Showing ${d.x.length} valid points ordered by ${d.tCol}.`);
       return;
     }
-    setPlotCanvas(renderShiftPreviewCanvas(d));
-    if (isLag3D()) {
-      setMeta(`Showing ${d.x.length} 3D lag points from ${d.signalLength} valid samples. Axes: x=${d.yCol}(n), y=${d.yCol}(n+${d.skip}), z=${d.tCol}. GIF frames use a moving window for clearer local structure.`);
-      if (elSummary) elSummary.textContent = "3D lag plot selected. GIF export or frame export uses a moving window so each frame shows the local lag structure clearly.";
-    } else {
-      setMeta(`Showing ${d.x.length} lag points from ${d.signalLength} valid samples. Time column used for ordering: ${d.tCol}. Skip = ${d.skip}. GIF frames use a moving window for clearer local structure.`);
-      if (elSummary) elSummary.textContent = "2D lag plot selected. GIF export uses a moving window of lag points in time order so the local pattern stays visible.";
-    }
+
+    const traces = [
+      { x: d.x, y: d.y, type: "scatter", mode: "lines", name: "Time-dependent path", line: { width: 3 } },
+      { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], type: "scatter", mode: "markers", name: "Current point", marker: { size: pointSize } }
+    ];
+    const layout = {
+      title: `${d.yCol} vs ${d.xCol} ordered by ${d.tCol}`,
+      margin: { l: 62, r: 24, t: 56, b: 58 },
+      xaxis: { title: d.xCol, automargin: true },
+      yaxis: { title: d.yCol, automargin: true },
+      legend: { orientation: "h", y: 1.12 },
+      paper_bgcolor: "#fff",
+      plot_bgcolor: "#fff"
+    };
+    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+    setMeta(`Showing ${d.x.length} valid 2D points ordered by ${d.tCol}.`);
   }
 
-  function renderTrajectoryPlot() {
-    const d = getTrajectoryData();
-    if (!d.x.length) {
-      setPlotPlaceholder("No valid trajectory points were found in the selected columns.");
-      setMeta("Choose numeric columns to preview your trajectory plot.");
+  function renderReturnPreview(d) {
+    const pointSize = clampInt(elPointSize.value, 4, 24, 11);
+    if (d.frameDim === "3d") {
+      const traces = [
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Return map path", line: { width: 4 } },
+        { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
+      ];
+      const layout = {
+        title: `3D return map: ${d.varCol}(n), ${d.varCol}(n+${d.lag}), ${d.tCol}`,
+        margin: { l: 10, r: 10, t: 56, b: 10 },
+        scene: build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
+        legend: { orientation: "h", y: 1.06 },
+        paper_bgcolor: "#fff"
+      };
+      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+      setMeta(`Showing ${d.x.length} return-map points. Axes: x=${d.varCol}(n), y=${d.varCol}(n+${d.lag}), z=${d.tCol}.`);
       return;
     }
-    setPlotCanvas(renderTrajectoryPreviewCanvas(d));
-    setMeta(`Showing ${d.x.length} valid trajectory points ordered by ${d.tCol}.`);
-    if (elSummary) elSummary.textContent = "Trajectory plot selected. GIF export will move a point along the path.";
+
+    const traces = [
+      {
+        x: d.x,
+        y: d.y,
+        type: "scatter",
+        mode: "lines+markers",
+        name: `${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
+        marker: { size: 5 },
+        line: { width: 2.5 }
+      },
+      {
+        x: d.x.length ? [d.x[d.x.length - 1]] : [],
+        y: d.y.length ? [d.y[d.y.length - 1]] : [],
+        type: "scatter",
+        mode: "markers",
+        name: "Current point",
+        marker: { size: Math.max(7, pointSize) }
+      }
+    ];
+    const diagMin = Math.min(...d.x, ...d.y);
+    const diagMax = Math.max(...d.x, ...d.y);
+    if (Number.isFinite(diagMin) && Number.isFinite(diagMax)) {
+      traces.unshift({
+        x: [diagMin, diagMax],
+        y: [diagMin, diagMax],
+        type: "scatter",
+        mode: "lines",
+        name: "y=x",
+        line: { width: 1.5, dash: "dash", color: "#9ca3af" }
+      });
+    }
+    const layout = {
+      title: `2D return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
+      margin: { l: 62, r: 24, t: 56, b: 58 },
+      xaxis: { title: `${d.varCol}(n)`, automargin: true },
+      yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1 },
+      legend: { orientation: "h", y: 1.12 },
+      paper_bgcolor: "#fff",
+      plot_bgcolor: "#fff"
+    };
+    Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+    setMeta(`Showing ${d.x.length} return-map points from the selected variable. Lag = ${d.lag}. Ordered by ${d.tCol}.`);
   }
 
   function renderCurrentPlot() {
     if (!state.rows.length) {
-      setPlotPlaceholder("Load a file to preview your plot here.");
-      setMeta("Load a file to preview your plot here.");
+      Plotly.react(elPlot, [], {
+        annotations: [{ text: "Upload a file to begin.", showarrow: false, xref: "paper", yref: "paper", x: 0.5, y: 0.5, font: { size: 18, color: "#6b7280" } }],
+        xaxis: { visible: false },
+        yaxis: { visible: false },
+        margin: { l: 0, r: 0, t: 10, b: 0 },
+        paper_bgcolor: "#fff",
+        plot_bgcolor: "#fff"
+      }, { responsive: true, displaylogo: false });
+      setMeta("Load a file to preview the selected map here.");
+      renderPreviewTable();
       return;
     }
-    if (elPlotType.value === "shift") renderShiftPlot();
-    else renderTrajectoryPlot();
+
+    const spec = getCurrentSpec();
+    if (elMapType.value === "return") renderReturnPreview(spec);
+    else renderTimePreview(spec);
+  }
+
+  function updateSummaryText() {
+    const frameDim = selValue(elFrameDim, "2d");
+    const mapType = selValue(elMapType, "time");
+    if (!elSummary) return;
+
+    if (mapType === "return") {
+      if (frameDim === "3d") {
+        elSummary.textContent = "3D return map selected. The frames use x = variable(n), y = variable(n+lag), and z = time.";
+      } else {
+        elSummary.textContent = "2D return map selected. The frames use x = variable(n) and y = variable(n+lag), following the chosen time order.";
+      }
+      return;
+    }
+
+    if (frameDim === "3d") {
+      if (selValue(elUseTimeAxis, "yes") === "yes") {
+        elSummary.textContent = "3D time-dependent map selected with time as one axis. Choose x and y variables; z is the time column.";
+      } else {
+        elSummary.textContent = "3D time-dependent map selected without time as an axis. Choose x, y, z variables; the path still follows the chosen time order.";
+      }
+      return;
+    }
+
+    elSummary.textContent = "2D time-dependent map selected. Choose x and y variables; the path follows the chosen time order.";
   }
 
   function updatePanels() {
-    const isShift = elPlotType.value === "shift";
-    elShiftPanel.classList.toggle("tool3-hidden", !isShift);
-    elTrajPanel.classList.toggle("tool3-hidden", isShift);
-    elZWrap.classList.toggle("tool3-hidden", elMode.value !== "3d");
-  }
+    const isReturn = selValue(elMapType, "time") === "return";
+    const is3D = selValue(elFrameDim, "2d") === "3d";
+    const useTimeAxis = is3D && selValue(elUseTimeAxis, "yes") === "yes";
 
-  function getGifModeConfig() {
-    const mode = (elGifQuality && elGifQuality.value === "high") ? "high" : "fast";
-    if (mode === "high") {
-      return { mode, width: 640, height: 420, maxFrames: 60, defaultFrames: 24, defaultFps: 8 };
+    if (elTimeMapControls) elTimeMapControls.classList.toggle("tool3-hidden", isReturn);
+    if (elReturnControls) elReturnControls.classList.toggle("tool3-hidden", !isReturn);
+    if (elUseTimeAxisWrap) elUseTimeAxisWrap.classList.toggle("tool3-hidden", isReturn || !is3D);
+    if (elZWrap) elZWrap.classList.toggle("tool3-hidden", isReturn || !is3D || useTimeAxis);
+    if (elReturnNote) {
+      elReturnNote.textContent = is3D
+        ? "3D return map uses x = variable(n), y = variable(n+lag), and z = time."
+        : "2D return map uses x = variable(n) and y = variable(n+lag).";
     }
-    return { mode, width: 480, height: 300, maxFrames: 48, defaultFrames: 16, defaultFps: 6 };
-  }
-
-  function syncGifInputsToMode() {
-    const cfg = getGifModeConfig();
-    elFrames.max = String(cfg.maxFrames);
-    if (!elFrames.dataset.userEdited) elFrames.value = String(cfg.defaultFrames);
-    if (!elFps.dataset.userEdited) elFps.value = String(cfg.defaultFps);
-  }
-
-  function buildFrameIndices(nPoints, nFrames) {
-    if (nPoints <= 1) return [0];
-    const steps = Math.max(2, nFrames);
-    const out = [];
-    for (let i = 0; i < steps; i++) {
-      out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
-    }
-    return Array.from(new Set(out));
-  }
-
-  function getLagWindowSize(totalPoints) {
-    const fallback = Math.min(120, Math.max(5, totalPoints || 120));
-    return clampInt(elLagWindow && elLagWindow.value, 5, 5000, fallback);
-  }
-
-  function getActiveWindowBounds(activeIdx, totalPoints, windowSize) {
-    const end = Math.max(0, Math.min(activeIdx, totalPoints - 1));
-    const start = Math.max(0, end - Math.max(1, windowSize) + 1);
-    return { start, end };
+    updateSummaryText();
   }
 
   function getMinMax(values) {
-    let lo = Infinity, hi = -Infinity;
+    let lo = Infinity;
+    let hi = -Infinity;
     for (const v of values) {
       if (!Number.isFinite(v)) continue;
       if (v < lo) lo = v;
@@ -597,6 +610,21 @@
     if (abs >= 10) return v.toFixed(1);
     if (abs >= 1) return v.toFixed(2);
     return v.toFixed(3);
+  }
+
+  function createCanvas(cfg) {
+    const canvas = document.createElement("canvas");
+    canvas.width = cfg.width;
+    canvas.height = cfg.height;
+    return canvas;
+  }
+
+  function drawBackground(ctx, w, h, title) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#111827";
+    ctx.font = "600 20px Inter, Arial, sans-serif";
+    ctx.fillText(title, 18, 28);
   }
 
   function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax) {
@@ -630,157 +658,64 @@
     }
   }
 
-  function createCanvas(cfg) {
-    const canvas = document.createElement("canvas");
-    canvas.width = cfg.width;
-    canvas.height = cfg.height;
-    return canvas;
-  }
+  function project3DFactory(xs, ys, zs, width, height) {
+    const [xmin, xmax] = getMinMax(xs);
+    const [ymin, ymax] = getMinMax(ys);
+    const [zmin, zmax] = getMinMax(zs);
+    const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
+    const az = Math.PI / 4.3;
+    const el = Math.PI / 8.8;
 
-  function drawBackground(ctx, w, h, title) {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#111827";
-    ctx.font = "600 20px Inter, Arial, sans-serif";
-    ctx.fillText(title, 18, 28);
-  }
-
-  function drawSimpleLegend(ctx, items, x, y) {
-    ctx.font = "12px Inter, Arial, sans-serif";
-    items.forEach((it, i) => {
-      const yy = y + i * 18;
-      ctx.strokeStyle = it.color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x, yy - 4);
-      ctx.lineTo(x + 20, yy - 4);
-      ctx.stroke();
-      ctx.fillStyle = "#374151";
-      ctx.fillText(it.label, x + 28, yy);
+    const pts = xs.map((x, i) => {
+      const X = norm(x, xmin, xmax);
+      const Y = norm(ys[i], ymin, ymax);
+      const Z = norm(zs[i], zmin, zmax);
+      const xr = Math.cos(az) * X - Math.sin(az) * Y;
+      const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
+      const yr = Math.cos(el) * yr0 - Math.sin(el) * Z;
+      return { x: xr, y: yr };
     });
+
+    let minPX = Infinity;
+    let maxPX = -Infinity;
+    let minPY = Infinity;
+    let maxPY = -Infinity;
+    pts.forEach((p) => {
+      minPX = Math.min(minPX, p.x);
+      maxPX = Math.max(maxPX, p.x);
+      minPY = Math.min(minPY, p.y);
+      maxPY = Math.max(maxPY, p.y);
+    });
+
+    const pad = 0.12;
+    const sx = (maxPX - minPX) || 1;
+    const sy = (maxPY - minPY) || 1;
+    minPX -= sx * pad;
+    maxPX += sx * pad;
+    minPY -= sy * pad;
+    maxPY += sy * pad;
+
+    return function (i) {
+      const p = pts[i];
+      return {
+        x: ((p.x - minPX) / ((maxPX - minPX) || 1)) * width,
+        y: height - ((p.y - minPY) / ((maxPY - minPY) || 1)) * height
+      };
+    };
   }
 
-  function renderShiftGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
+  function render2DTimeFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
     const pad = { l: 60, r: 24, t: 50, b: 48 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const all = d.x.concat(d.y);
-    const [xmin, xmax] = getMinMax(all);
-    const [ymin, ymax] = getMinMax(all);
-    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
-    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
-    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    const windowSize = getLagWindowSize(d.x.length);
-    const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
-
-    drawBackground(ctx, w, h, `2D lag plot: ${d.yCol}(n) vs ${d.yCol}(n+${d.skip})`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
-
-    ctx.save();
-    ctx.strokeStyle = "#9ca3af";
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(xMap(xmin), yMap(xmin));
-    ctx.lineTo(xMap(xmax), yMap(xmax));
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = "#2563eb";
-    for (let i = start; i <= end; i++) {
-      ctx.beginPath();
-      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.8;
-    ctx.beginPath();
-    for (let i = start; i <= end; i++) {
-      const xx = xMap(d.x[i]);
-      const yy = yMap(d.y[i]);
-      if (i === start) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
-    }
-    ctx.stroke();
-
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`${d.yCol}(n)`, w / 2 - 24, h - 12);
-    ctx.save();
-    ctx.translate(16, h / 2 + 10);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.yCol}(n+${d.skip})`, 0, 0);
-    ctx.restore();
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 160, 44);
-    ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
-
-    return canvas;
-  }
-
-
-  function renderLag3DGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
-    const w = canvas.width, h = canvas.height;
-    const pad = { l: 24, r: 24, t: 50, b: 24 };
-    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-
-    drawBackground(ctx, w, h, `3D lag plot: ${d.yCol}(n), ${d.yCol}(n+${d.skip}), ${d.tCol}`);
-    const proj = project3DFactory(d.x, d.y, d.t, iw, ih);
-    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    const windowSize = getLagWindowSize(d.x.length);
-    const { start, end } = getActiveWindowBounds(activeIdx, d.x.length, windowSize);
-
-    ctx.save();
-    ctx.translate(pad.l, pad.t);
-
-    ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.8;
-    ctx.beginPath();
-    for (let i = start; i <= end; i++) {
-      const p = proj(i);
-      if (i === start) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    const point = proj(activeIdx);
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, ps * 0.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-    ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`x = ${d.yCol}(n)`, 18, h - 34);
-    ctx.fillText(`y = ${d.yCol}(n+${d.skip})`, 18, h - 18);
-    ctx.fillText(`z = ${d.tCol}`, 180, h - 18);
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-    ctx.fillText(`window ${start + 1}-${end + 1}`, 18, 26);
-    return canvas;
-  }
-
-  function renderTrajectory2DGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
-    const w = canvas.width, h = canvas.height;
-    const pad = { l: 60, r: 24, t: 50, b: 48 };
-    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const [xmin, xmax] = getMinMax(d.x), [ymin, ymax] = getMinMax(d.y);
+    const [xmin, xmax] = getMinMax(d.x);
+    const [ymin, ymax] = getMinMax(d.y);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
 
-    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol} trajectory`);
+    drawBackground(ctx, w, h, `${d.yCol} vs ${d.xCol}`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
 
     ctx.globalAlpha = 0.18;
@@ -814,63 +749,90 @@
 
     ctx.fillStyle = "#374151";
     ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`${d.xCol}`, w / 2 - 10, h - 12);
+    ctx.fillText(d.xCol, w / 2 - 10, h - 12);
     ctx.save();
     ctx.translate(16, h / 2 + 10);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.yCol}`, 0, 0);
+    ctx.fillText(d.yCol, 0, 0);
     ctx.restore();
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
 
     return canvas;
   }
 
-  function project3DFactory(xs, ys, zs, width, height) {
-    const [xmin, xmax] = getMinMax(xs);
-    const [ymin, ymax] = getMinMax(ys);
-    const [zmin, zmax] = getMinMax(zs);
-    const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
-    const az = Math.PI / 4.3, el = Math.PI / 8.8;
+  function render2DReturnFrame(d, idx, cfg) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    const all = d.x.concat(d.y);
+    const [xmin, xmax] = getMinMax(all);
+    const [ymin, ymax] = getMinMax(all);
+    const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
+    const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
+    const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
-    const pts = xs.map((x, i) => {
-      const X = norm(x, xmin, xmax);
-      const Y = norm(ys[i], ymin, ymax);
-      const Z = norm(zs[i], zmin, zmax);
-      const xr = Math.cos(az) * X - Math.sin(az) * Y;
-      const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
-      const yr = Math.cos(el) * yr0 - Math.sin(el) * Z;
-      return { x: xr, y: yr };
-    });
+    drawBackground(ctx, w, h, `Return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
 
-    let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
-    pts.forEach((p) => {
-      minPX = Math.min(minPX, p.x);
-      maxPX = Math.max(maxPX, p.x);
-      minPY = Math.min(minPY, p.y);
-      maxPY = Math.max(maxPY, p.y);
-    });
+    ctx.save();
+    ctx.strokeStyle = "#9ca3af";
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(xMap(xmin), yMap(xmin));
+    ctx.lineTo(xMap(xmax), yMap(xmax));
+    ctx.stroke();
+    ctx.restore();
 
-    const pad = 0.12;
-    const sx = (maxPX - minPX) || 1, sy = (maxPY - minPY) || 1;
-    minPX -= sx * pad; maxPX += sx * pad;
-    minPY -= sy * pad; maxPY += sy * pad;
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#2563eb";
+    for (let i = 0; i < d.x.length; i++) {
+      ctx.beginPath();
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
-    return function (i) {
-      const p = pts[i];
-      return {
-        x: ((p.x - minPX) / ((maxPX - minPX) || 1)) * width,
-        y: height - ((p.y - minPY) / ((maxPY - minPY) || 1)) * height
-      };
-    };
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= activeIdx; i++) {
+      const xx = xMap(d.x[i]);
+      const yy = yMap(d.y[i]);
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.varCol}(n)`, w / 2 - 24, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.varCol}(n+${d.lag})`, 0, 0);
+    ctx.restore();
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+
+    return canvas;
   }
 
-  function renderTrajectory3DGifFrame(d, idx, cfg) {
-    const canvas = createCanvas(cfg), ctx = canvas.getContext("2d");
+  function render3DFrame(d, idx, cfg, title, xLabel, yLabel, zLabel) {
+    const canvas = createCanvas(cfg);
+    const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const pad = { l: 24, r: 24, t: 50, b: 24 };
+    const pad = { l: 24, r: 24, t: 50, b: 28 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
-    drawBackground(ctx, w, h, `${d.xCol}–${d.yCol}–${d.zCol} trajectory (3D projection)`);
+    drawBackground(ctx, w, h, title);
     const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
@@ -909,9 +871,140 @@
     ctx.restore();
     ctx.fillStyle = "#374151";
     ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText("3D projected view", 18, h - 14);
+    ctx.fillText(`x = ${xLabel}`, 18, h - 34);
+    ctx.fillText(`y = ${yLabel}`, 18, h - 18);
+    ctx.fillText(`z = ${zLabel}`, 180, h - 18);
     ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    if (d.t && d.t.length) ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+
     return canvas;
+  }
+
+  function buildFrameConfig() {
+    return { width: 640, height: 420 };
+  }
+
+  function buildFrameIndices(nPoints, nFrames) {
+    if (nPoints <= 1) return [0];
+    const steps = Math.max(2, nFrames);
+    const out = [];
+    for (let i = 0; i < steps; i++) {
+      out.push(Math.round((i / (steps - 1)) * (nPoints - 1)));
+    }
+    return Array.from(new Set(out));
+  }
+
+  function collectAnimationSpec() {
+    const cfg = buildFrameConfig();
+    const nFramesInput = clampInt(elFrames.value, 8, 120, 40);
+    const current = getCurrentSpec();
+    let frameIndices = [];
+    let drawFrame = null;
+    let outName = "plot_frames.zip";
+
+    if (current.x.length < 2) throw new Error("Need at least two valid points for frame export.");
+
+    frameIndices = buildFrameIndices(current.x.length, Math.min(nFramesInput, current.x.length));
+
+    if (current.mapType === "time") {
+      if (current.frameDim === "2d") {
+        drawFrame = (idx) => render2DTimeFrame(current, idx, cfg);
+        outName = `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_map_frames.zip`;
+      } else {
+        const zLabel = current.useTimeAxis ? current.tCol : current.zCol;
+        const title = current.useTimeAxis
+          ? `${current.xCol}, ${current.yCol}, ${current.tCol}`
+          : `${current.xCol}, ${current.yCol}, ${current.zCol}`;
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, title, current.xCol, current.yCol, zLabel);
+        outName = current.useTimeAxis
+          ? `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_axis_frames.zip`
+          : `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_${current.zCol.replace(/[^\w.-]+/g, "_")}_time_ordered_frames.zip`;
+      }
+    } else {
+      if (current.frameDim === "2d") {
+        drawFrame = (idx) => render2DReturnFrame(current, idx, cfg);
+        outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_lag${current.lag}_frames.zip`;
+      } else {
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, `Return map: ${current.varCol}(n), ${current.varCol}(n+${current.lag}), ${current.tCol}`, `${current.varCol}(n)`, `${current.varCol}(n+${current.lag})`, current.tCol);
+        outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_3d_lag${current.lag}_frames.zip`;
+      }
+    }
+
+    return { cfg, frameIndices, drawFrame, outName };
+  }
+
+  function canvasToPngBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not encode PNG frame.")), "image/png");
+    });
+  }
+
+  async function downloadFramesZip() {
+    if (!state.rows.length) {
+      setFramesStatus("Upload data first before exporting frames.");
+      return;
+    }
+    if (!window.JSZip) {
+      setFramesStatus("Frame ZIP export needs JSZip. Please refresh the page and try again.");
+      return;
+    }
+
+    if (elFramesZipBtn) {
+      elFramesZipBtn.disabled = true;
+      elFramesZipBtn.textContent = "Rendering…";
+    }
+
+    revokeFrameZipUrl();
+    setFramesZipDownloadEnabled(false);
+
+    try {
+      const spec = collectAnimationSpec();
+      const zip = new window.JSZip();
+      const digits = Math.max(3, String(spec.frameIndices.length).length);
+
+      for (let i = 0; i < spec.frameIndices.length; i++) {
+        setFramesStatus(`Rendering PNG frame ${i + 1} of ${spec.frameIndices.length}…`);
+        const canvas = spec.drawFrame(spec.frameIndices[i]);
+        const blob = await canvasToPngBlob(canvas);
+        const name = `frame_${String(i + 1).padStart(digits, "0")}.png`;
+        zip.file(name, blob);
+        await yieldToUi();
+      }
+
+      setFramesStatus("Compressing frame ZIP…");
+      const zipBlob = await zip.generateAsync({ type: "blob" }, (meta) => {
+        setFramesStatus(`Compressing frame ZIP… ${Math.round(meta.percent || 0)}%`);
+      });
+
+      state.frameZipUrl = URL.createObjectURL(zipBlob);
+      setFramesZipDownloadEnabled(true, state.frameZipUrl, spec.outName);
+      setFramesStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created.`);
+      if (elFramesZipDownload) elFramesZipDownload.click();
+    } catch (err) {
+      console.error(err);
+      setFramesStatus(err && err.message ? err.message : "Could not export frame ZIP.");
+    } finally {
+      if (elFramesZipBtn) {
+        elFramesZipBtn.disabled = false;
+        elFramesZipBtn.textContent = "Render frames ZIP";
+      }
+    }
+  }
+
+  function blobToImage(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not read one of the frame images."));
+      };
+      img.src = url;
+    });
   }
 
   function buildGIFPalette332() {
@@ -981,7 +1074,6 @@
       } else {
         const outCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
         writeCode(outCode);
-
         if (nextCode < 4096) {
           dict.set(key, nextCode++);
           if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
@@ -996,7 +1088,6 @@
     const finalCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
     writeCode(finalCode);
     writeCode(EOI);
-
     if (bits > 0) bytes.push(cur & 0xFF);
     return Uint8Array.from(bytes);
   }
@@ -1016,18 +1107,15 @@
     return parts;
   }
 
-
   function encodeAnimatedGif(frameCanvases, width, height, delayCs, onProgress) {
     const palette = buildGIFPalette332();
     const parts = [];
 
-    parts.push(Uint8Array.from([71, 73, 70, 56, 57, 97])); // GIF89a
+    parts.push(Uint8Array.from([71, 73, 70, 56, 57, 97]));
     parts.push(le16(width));
     parts.push(le16(height));
     parts.push(Uint8Array.from([0xF7, 0x00, 0x00]));
     parts.push(palette);
-
-    // Netscape loop extension (infinite)
     parts.push(Uint8Array.from([
       0x21, 0xFF, 0x0B,
       0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
@@ -1041,12 +1129,10 @@
       const indexed = rgbaToIndexed332(img);
       const lzw = lzwEncodeGIF(indexed, 8);
 
-      // Graphics Control Extension
       parts.push(Uint8Array.from([0x21, 0xF9, 0x04, 0x00]));
       parts.push(le16(delayCs));
       parts.push(Uint8Array.from([0x00, 0x00]));
 
-      // Image Descriptor
       parts.push(Uint8Array.from([0x2C]));
       parts.push(le16(0));
       parts.push(le16(0));
@@ -1054,13 +1140,12 @@
       parts.push(le16(height));
       parts.push(Uint8Array.from([0x00]));
 
-      // LZW image data
       parts.push(Uint8Array.from([0x08]));
       const subs = splitSubBlocks(lzw);
       for (let j = 0; j < subs.length; j++) parts.push(subs[j]);
     }
 
-    parts.push(Uint8Array.from([0x3B])); // trailer
+    parts.push(Uint8Array.from([0x3B]));
 
     let totalLen = 0;
     for (let i = 0; i < parts.length; i++) totalLen += parts[i].length;
@@ -1071,113 +1156,6 @@
       off += parts[i].length;
     }
     return new Blob([out], { type: "image/gif" });
-  }
-
-  function collectAnimationSpec() {
-    const cfg = getGifModeConfig();
-    const fps = clampInt(elFps.value, 1, 20, cfg.defaultFps);
-    const nFramesInput = clampInt(elFrames.value, 8, cfg.maxFrames, cfg.defaultFrames);
-    let frameIndices = [];
-    let drawFrame = null;
-    let outName = "plot_animation.gif";
-
-    if (elPlotType.value === "shift") {
-      const d = getLagData();
-      if (d.x.length < 2) throw new Error("Need at least two valid lag-plot points for export.");
-      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
-      drawFrame = isLag3D() ? (idx) => renderLag3DGifFrame(d, idx, cfg) : (idx) => renderShiftGifFrame(d, idx, cfg);
-      outName = isLag3D() ? `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag3d.gif` : `${d.yCol.replace(/[^\w.-]+/g, "_")}_lag_plot.gif`;
-    } else {
-      const d = getTrajectoryData();
-      if (d.x.length < 2) throw new Error("Need at least two valid trajectory points for export.");
-      frameIndices = buildFrameIndices(d.x.length, Math.min(nFramesInput, d.x.length));
-      drawFrame = d.mode === "3d" ? (idx) => renderTrajectory3DGifFrame(d, idx, cfg) : (idx) => renderTrajectory2DGifFrame(d, idx, cfg);
-      outName = d.mode === "3d" ? "trajectory3d.gif" : "trajectory2d.gif";
-    }
-
-    return { cfg, fps, frameIndices, drawFrame, outName };
-  }
-
-  function canvasToPngBlob(canvas) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not encode PNG frame.")), "image/png");
-    });
-  }
-
-  async function buildFrameCanvases(spec, statusPrefix) {
-    const frameCanvases = [];
-    for (let i = 0; i < spec.frameIndices.length; i++) {
-      setGifStatus(`${statusPrefix} ${i + 1} of ${spec.frameIndices.length}…`);
-      frameCanvases.push(spec.drawFrame(spec.frameIndices[i]));
-      await yieldToUi();
-    }
-    return frameCanvases;
-  }
-
-  async function downloadFramesZip() {
-    if (!state.rows.length) {
-      setGifStatus("Upload data first before exporting frames.");
-      return;
-    }
-    if (!window.JSZip) {
-      setGifStatus("Frame ZIP export needs JSZip. Please refresh the page and try again.");
-      return;
-    }
-    if (elFramesZipBtn) {
-      elFramesZipBtn.disabled = true;
-      elFramesZipBtn.textContent = "Building ZIP…";
-    }
-    revokeFrameZipUrl();
-    setFramesZipDownloadEnabled(false);
-    try {
-      const spec = collectAnimationSpec();
-      const zip = new window.JSZip();
-      const digits = Math.max(3, String(spec.frameIndices.length).length);
-      for (let i = 0; i < spec.frameIndices.length; i++) {
-        setGifStatus(`Rendering PNG frame ${i + 1} of ${spec.frameIndices.length}…`);
-        const canvas = spec.drawFrame(spec.frameIndices[i]);
-        const blob = await canvasToPngBlob(canvas);
-        const name = `frame_${String(i + 1).padStart(digits, "0")}.png`;
-        zip.file(name, blob);
-        await yieldToUi();
-      }
-      setGifStatus("Compressing frame ZIP…");
-      const zipBlob = await zip.generateAsync({ type: "blob" }, (meta) => {
-        setGifStatus(`Compressing frame ZIP… ${Math.round(meta.percent || 0)}%`);
-      });
-      state.frameZipUrl = URL.createObjectURL(zipBlob);
-      const base = spec.outName.replace(/\.gif$/i, "");
-      const zipName = `${base}_frames.zip`;
-      setFramesZipDownloadEnabled(true, state.frameZipUrl, zipName);
-      const previewCanvas = spec.drawFrame(spec.frameIndices[Math.max(0, spec.frameIndices.length - 1)]);
-      if (elGifPreview) {
-        elGifPreview.innerHTML = "";
-        previewCanvas.style.maxWidth = "100%";
-        previewCanvas.style.height = "auto";
-        previewCanvas.style.display = "block";
-        elGifPreview.appendChild(previewCanvas);
-      }
-      setGifStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created. Download the ZIP, then upload it in Step 2 below to make the GIF.`);
-      if (elFramesZipDownload) elFramesZipDownload.click();
-    } catch (err) {
-      console.error(err);
-      setGifStatus(err && err.message ? err.message : "Could not export frame ZIP.");
-    } finally {
-      if (elFramesZipBtn) {
-        elFramesZipBtn.disabled = false;
-        elFramesZipBtn.textContent = "Render and download Frames ZIP";
-      }
-    }
-  }
-
-  function blobToImage(blob) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
-      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read one of the frame images.")); };
-      img.src = url;
-    });
   }
 
   async function mergeFramesZipToGif() {
@@ -1194,15 +1172,18 @@
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
     }
+
     revokeMergeGifUrl();
     setMergeGifDownloadEnabled(false);
     setMergePreview("Reading frame ZIP…");
+
     try {
       const zip = await window.JSZip.loadAsync(file);
       const entries = Object.values(zip.files)
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
       if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
+
       setMergeStatus(`Reading ${entries.length} frame images…`);
       const images = [];
       for (let i = 0; i < entries.length; i++) {
@@ -1211,6 +1192,7 @@
         setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
         await yieldToUi();
       }
+
       const width = images[0].naturalWidth || images[0].width;
       const height = images[0].naturalHeight || images[0].height;
       const canvases = images.map((img) => {
@@ -1223,12 +1205,14 @@
         ctx.drawImage(img, 0, 0, width, height);
         return canvas;
       });
-      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 6);
+
+      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
       const delayCs = Math.max(2, Math.round(100 / fps));
       setMergeStatus("Writing merged GIF…");
       const blob = encodeAnimatedGif(canvases, width, height, delayCs, (i, total) => {
         if (i % 2 === 0 || i === total - 1) setMergeStatus(`Writing merged GIF… ${i + 1}/${total}`);
       });
+
       state.mergeGifUrl = URL.createObjectURL(blob);
       setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
@@ -1246,8 +1230,9 @@
   }
 
   function handleSheetChange() {
-    parseSheet(elSheet.value);
+    parseSheet(selValue(elSheet));
     refreshControls();
+    updatePanels();
     renderCurrentPlot();
   }
 
@@ -1259,52 +1244,38 @@
       await loadWorkbookFromFile(file);
     } catch (err) {
       console.error(err);
-      setLoadStatus(err && err.message ? err.message : "Could not read that file. Try the built-in example first, then match your file to that format.");
+      setLoadStatus("Could not read that file. Try the example Excel first, then match your file to that format.");
     }
   });
 
-  if (elLoadExampleBtn) {
-    elLoadExampleBtn.addEventListener("click", async () => {
-      try {
-        await loadBuiltInExample();
-      } catch (err) {
-        console.error(err);
-        setLoadStatus(err && err.message ? err.message : "Could not load the built-in example.");
-      }
-    });
-  }
-
   elSheet.addEventListener("change", handleSheetChange);
+  [elMapType, elFrameDim, elUseTimeAxis, elX, elY, elZ, elReturnVar, elLag, elPointSize, elLineWidth, elFrameCount, elFrameRate]
+    .filter(Boolean)
+    .forEach((el) => el.addEventListener("change", () => {
+      updatePanels();
+      renderCurrentPlot();
+    }));
 
-  [elPlotType, elTimeShift, elShiftVar, elSkip, elLagWindow, elLagMode, elTimeTraj, elMode, elX, elY, elZ, elPointSize].forEach((el) => {
-    if (!el) return;
-    el.addEventListener("change", () => { updatePanels(); renderCurrentPlot(); });
-    el.addEventListener("input", () => {
-      if (el === elSkip || el === elPointSize) renderCurrentPlot();
-    });
+  elDownloadFramesBtn.addEventListener("click", async () => {
+    try {
+      await downloadFramesZip();
+    } catch (err) {
+      console.error(err);
+      setFramesStatus("Could not build the frames ZIP.");
+    }
   });
 
-  if (elFrames) elFrames.addEventListener("input", () => { elFrames.dataset.userEdited = "1"; });
-  if (elFps) elFps.addEventListener("input", () => { elFps.dataset.userEdited = "1"; });
-  if (elGifQuality) {
-    elGifQuality.addEventListener("change", () => {
-      if (elFrames) delete elFrames.dataset.userEdited;
-      if (elFps) delete elFps.dataset.userEdited;
-      syncGifInputsToMode();
-    });
-  }
-  if (elFramesZipBtn) elFramesZipBtn.addEventListener("click", downloadFramesZip);
-  if (elMergeGifBtn) elMergeGifBtn.addEventListener("click", mergeFramesZipToGif);
-
-  window.addEventListener("resize", () => {
-    if (state.rows.length) renderCurrentPlot();
+  elMergeZip.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      await mergeFramesZipToGif(file);
+    } catch (err) {
+      console.error(err);
+      setMergeStatus("Could not create the GIF from that ZIP.");
+    }
   });
 
+  setFramesZipDownloadEnabled(false, "");
+  setMergeGifDownloadEnabled(false, "");
   updatePanels();
-  syncGifInputsToMode();
-  setFramesZipDownloadEnabled(false);
-  setMergeGifDownloadEnabled(false);
-  setGifStatus("Step 1: render numbered PNG frames and download them as a ZIP. Step 2: upload that ZIP below to merge it into a GIF.");
-  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
-  renderCurrentPlot();
-})();
