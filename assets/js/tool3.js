@@ -1,7 +1,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
-  const selValue = (el, fallback = "") =>
-    el && typeof el.value !== "undefined" ? el.value : fallback;
+  const selValue = (el, fallback = "") => (
+    el && typeof el.value !== "undefined" ? el.value : fallback
+  );
 
   const elFile = $("tool3File");
   const elSheet = $("tool3Sheet");
@@ -546,7 +547,6 @@
     const frameDim = selValue(elFrameDim, "2d");
     const mapType = selValue(elMapType, "time");
     if (!elSummary) return;
-
     if (mapType === "return") {
       if (frameDim === "3d") {
         elSummary.textContent = "3D return map selected. The frames use x = variable(n), y = variable(n+lag), and z = time.";
@@ -1249,33 +1249,30 @@
   });
 
   elSheet.addEventListener("change", handleSheetChange);
-  [elMapType, elFrameDim, elUseTimeAxis, elX, elY, elZ, elReturnVar, elLag, elPointSize, elLineWidth, elFrameCount, elFrameRate]
-    .filter(Boolean)
-    .forEach((el) => el.addEventListener("change", () => {
+
+  [elTimeCol, elFrameDim, elMapType, elUseTimeAxis, elX, elY, elZ, elReturnVar].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", () => {
+      refreshControls();
       updatePanels();
       renderCurrentPlot();
-    }));
-
-  elDownloadFramesBtn.addEventListener("click", async () => {
-    try {
-      await downloadFramesZip();
-    } catch (err) {
-      console.error(err);
-      setFramesStatus("Could not build the frames ZIP.");
-    }
+    });
   });
 
-  elMergeZip.addEventListener("change", async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-      await mergeFramesZipToGif(file);
-    } catch (err) {
-      console.error(err);
-      setMergeStatus("Could not create the GIF from that ZIP.");
-    }
+  [elLag, elPointSize].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("input", () => renderCurrentPlot());
+    el.addEventListener("change", () => renderCurrentPlot());
   });
 
-  setFramesZipDownloadEnabled(false, "");
-  setMergeGifDownloadEnabled(false, "");
+  if (elFramesZipBtn) elFramesZipBtn.addEventListener("click", downloadFramesZip);
+  if (elMergeGifBtn) elMergeGifBtn.addEventListener("click", mergeFramesZipToGif);
+
+  setFramesZipDownloadEnabled(false);
+  setMergeGifDownloadEnabled(false);
+  setFramesStatus("Render the selected plot into PNG frames and download them as a ZIP file.");
+  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
+  renderPreviewTable();
   updatePanels();
+  renderCurrentPlot();
+})();
