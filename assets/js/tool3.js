@@ -1161,13 +1161,10 @@
       return;
     }
     if (!window.JSZip) {
-      setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
+      setMergeStatus("ZIP import needs JSZip. Please refresh the page.");
       return;
     }
-    if (!window.GIF) {
-      setMergeStatus("GIF encoder library is missing. Please refresh the page and try again.");
-      return;
-    }
+    
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1182,65 +1179,47 @@
       const entries = Object.values(zip.files)
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-      if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
+      
+      if (!entries.length) throw new Error("No image frames found in the ZIP.");
 
-      setMergeStatus(`Reading ${entries.length} frame images…`);
       const images = [];
       for (let i = 0; i < entries.length; i++) {
         const blob = await entries[i].async("blob");
         images.push(await blobToImage(blob));
-        setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
+        setMergeStatus(`Loading frame ${i + 1}/${entries.length}…`);
         await yieldToUi();
       }
 
       const width = images[0].naturalWidth || images[0].width;
       const height = images[0].naturalHeight || images[0].height;
       const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
-      const delayMs = Math.max(50, Math.round(1000 / fps));
+      const delayCs = Math.max(1, Math.round(100 / fps));
 
-      const gif = new window.GIF({
-        workers: 2,
-        quality: 10,
-        width,
-        height,
-        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js",
-        background: "#ffffff"
-      });
-
-      setMergeStatus("Encoding GIF…");
+      const canvases = [];
       for (let i = 0; i < images.length; i++) {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#ffffff"; 
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(images[i], 0, 0, width, height);
-        gif.addFrame(canvas, { copy: true, delay: delayMs });
-        if (i % 2 === 0 || i === images.length - 1) {
-          setMergeStatus(`Prepared frame ${i + 1} of ${images.length}…`);
-          await yieldToUi();
-        }
+        canvases.push(canvas);
+        if (i % 5 === 0) await yieldToUi(); 
       }
 
-      const blob = await new Promise((resolve, reject) => {
-        gif.on("progress", (p) => {
-          const pct = Math.max(0, Math.min(100, Math.round(p * 100)));
-          setMergeStatus(`Encoding GIF… ${pct}%`);
-        });
-        gif.on("finished", resolve);
-        gif.on("abort", () => reject(new Error("GIF encoding was aborted.")));
-        gif.render();
-      });
+      setMergeStatus("Encoding GIF... (this may take a moment)");
+      await yieldToUi();
+
+      const blob = encodeAnimatedGif(canvases, width, height, delayCs);
 
       state.mergeGifUrl = URL.createObjectURL(blob);
-      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF" style="max-width:100%; height:auto;" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
+      setMergeStatus(`Done! ${entries.length} frames merged.`);
     } catch (err) {
       console.error(err);
-      setMergePreview("Could not merge that frame ZIP.");
-      setMergeStatus(err && err.message ? err.message : "Could not merge frame ZIP into GIF.");
+      setMergeStatus("Error: " + err.message);
     } finally {
       if (elMergeGifBtn) {
         elMergeGifBtn.disabled = false;
