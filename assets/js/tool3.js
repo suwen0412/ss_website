@@ -1161,10 +1161,10 @@
       return;
     }
     if (!window.JSZip) {
-      setMergeStatus("ZIP import needs JSZip. Please refresh the page.");
+      setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
       return;
     }
-    
+
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1180,46 +1180,48 @@
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
       
-      if (!entries.length) throw new Error("No image frames found in the ZIP.");
+      if (!entries.length) throw new Error("No PNG/JPG/WebP frames found in the ZIP.");
 
-      const images = [];
+      // Convert ZIP entries to Canvas elements
+      const frameCanvases = [];
       for (let i = 0; i < entries.length; i++) {
+        setMergeStatus(`Loading frame ${i + 1} of ${entries.length}…`);
         const blob = await entries[i].async("blob");
-        images.push(await blobToImage(blob));
-        setMergeStatus(`Loading frame ${i + 1}/${entries.length}…`);
+        const img = await blobToImage(blob);
+        const cvs = document.createElement("canvas");
+        cvs.width = img.naturalWidth || img.width;
+        cvs.height = img.naturalHeight || img.height;
+        const ctx = cvs.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        frameCanvases.push(cvs);
         await yieldToUi();
       }
 
-      const width = images[0].naturalWidth || images[0].width;
-      const height = images[0].naturalHeight || images[0].height;
       const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
-      const delayCs = Math.max(1, Math.round(100 / fps));
+      const delayCs = Math.round(100 / fps); // Centiseconds for GIF standard
 
-      const canvases = [];
-      for (let i = 0; i < images.length; i++) {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.fillStyle = "#ffffff"; 
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(images[i], 0, 0, width, height);
-        canvases.push(canvas);
-        if (i % 5 === 0) await yieldToUi(); 
-      }
-
-      setMergeStatus("Encoding GIF... (this may take a moment)");
-      await yieldToUi();
-
-      const blob = encodeAnimatedGif(canvases, width, height, delayCs);
+      setMergeStatus("Encoding GIF (Built-in)...");
+      
+      // Use the internal encoder function already at the bottom of your script
+      const blob = encodeAnimatedGif(
+        frameCanvases, 
+        frameCanvases[0].width, 
+        frameCanvases[0].height, 
+        delayCs, 
+        (cur, total) => {
+          setMergeStatus(`Encoding frame ${cur + 1} of ${total}…`);
+        }
+      );
 
       state.mergeGifUrl = URL.createObjectURL(blob);
-      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF" style="max-width:100%; height:auto;" />`);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" style="max-width:100%; height:auto;" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Done! ${entries.length} frames merged.`);
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
+      
     } catch (err) {
       console.error(err);
-      setMergeStatus("Error: " + err.message);
+      setMergePreview("Could not merge that frame ZIP.");
+      setMergeStatus(err && err.message ? err.message : "Could not merge frame ZIP into GIF.");
     } finally {
       if (elMergeGifBtn) {
         elMergeGifBtn.disabled = false;
@@ -1227,7 +1229,6 @@
       }
     }
   }
-
   function handleSheetChange() {
     parseSheet(elSheet.value);
     refreshControls();
