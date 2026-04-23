@@ -1164,7 +1164,10 @@
       setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
       return;
     }
-
+    if (!window.GIF) {
+      setMergeStatus("GIF.js did not load. Hard refresh the page and try again.");
+      return;
+    }
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1179,45 +1182,69 @@
       const entries = Object.values(zip.files)
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-      
-      if (!entries.length) throw new Error("No PNG/JPG/WebP frames found in the ZIP.");
+      if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
 
-      // Convert ZIP entries to Canvas elements
-      const frameCanvases = [];
+      setMergeStatus(`Reading ${entries.length} frame images…`);
+      const images = [];
       for (let i = 0; i < entries.length; i++) {
-        setMergeStatus(`Loading frame ${i + 1} of ${entries.length}…`);
         const blob = await entries[i].async("blob");
-        const img = await blobToImage(blob);
-        const cvs = document.createElement("canvas");
-        cvs.width = img.naturalWidth || img.width;
-        cvs.height = img.naturalHeight || img.height;
-        const ctx = cvs.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        frameCanvases.push(cvs);
+        images.push(await blobToImage(blob));
+        setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
         await yieldToUi();
       }
 
-      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
-      const delayCs = Math.round(100 / fps); // Centiseconds for GIF standard
-
-      setMergeStatus("Encoding GIF (Built-in)...");
-      
-      // Use the internal encoder function already at the bottom of your script
-      const blob = encodeAnimatedGif(
-        frameCanvases, 
-        frameCanvases[0].width, 
-        frameCanvases[0].height, 
-        delayCs, 
-        (cur, total) => {
-          setMergeStatus(`Encoding frame ${cur + 1} of ${total}…`);
+      const width = images[0].naturalWidth || images[0].width;
+      const height = images[0].naturalHeight || images[0].height;
+      for (let i = 1; i < images.length; i++) {
+        const w = images[i].naturalWidth || images[i].width;
+        const h = images[i].naturalHeight || images[i].height;
+        if (w !== width || h !== height) {
+          throw new Error("All frames in the ZIP must have the same image size.");
         }
-      );
+      }
+
+      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
+      const delayMs = Math.max(50, Math.round(1000 / fps));
+
+      const gif = new window.GIF({
+        workers: 2,
+        quality: 10,
+        width,
+        height,
+        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js",
+        background: "#ffffff"
+      });
+
+      setMergeStatus("Encoding GIF…");
+      for (let i = 0; i < images.length; i++) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(images[i], 0, 0, width, height);
+        gif.addFrame(canvas, { copy: true, delay: delayMs });
+        if (i % 2 === 0 || i === images.length - 1) {
+          setMergeStatus(`Prepared frame ${i + 1} of ${images.length}…`);
+          await yieldToUi();
+        }
+      }
+
+      const blob = await new Promise((resolve, reject) => {
+        gif.on("progress", (p) => {
+          const pct = Math.max(0, Math.min(100, Math.round(p * 100)));
+          setMergeStatus(`Encoding GIF… ${pct}%`);
+        });
+        gif.on("finished", resolve);
+        gif.on("abort", () => reject(new Error("GIF encoding was aborted.")));
+        gif.render();
+      });
 
       state.mergeGifUrl = URL.createObjectURL(blob);
-      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" style="max-width:100%; height:auto;" />`);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
-      
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps using GIF.js.`);
     } catch (err) {
       console.error(err);
       setMergePreview("Could not merge that frame ZIP.");
@@ -1229,6 +1256,7 @@
       }
     }
   }
+
   function handleSheetChange() {
     parseSheet(elSheet.value);
     refreshControls();
