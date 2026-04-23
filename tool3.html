@@ -195,11 +195,46 @@
                   <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
                 </label>
               </div>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Export resolution</span>
+                  <select class="tool3-select" id="tool3ExportResolution">
+                    <option value="640x420">Standard · 640 × 420</option>
+                    <option value="960x630">Presentation · 960 × 630</option>
+                    <option value="1280x840" selected>High · 1280 × 840</option>
+                    <option value="1600x1050">Very high · 1600 × 1050</option>
+                  </select>
+                </label>
+                <label class="tool3-label">
+                  <span>Frame title override</span>
+                  <input class="tool3-input" id="tool3FrameTitle" type="text" placeholder="Leave blank to use automatic title" />
+                </label>
+              </div>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>X-axis label override</span>
+                  <input class="tool3-input" id="tool3FrameXLabel" type="text" placeholder="Leave blank to use selected variable" />
+                </label>
+                <label class="tool3-label">
+                  <span>Y-axis label override</span>
+                  <input class="tool3-input" id="tool3FrameYLabel" type="text" placeholder="Leave blank to use selected variable" />
+                </label>
+              </div>
+              <div class="tool3-grid-2">
+                <label class="tool3-label">
+                  <span>Z-axis label override</span>
+                  <input class="tool3-input" id="tool3FrameZLabel" type="text" placeholder="Only used for 3D frames" />
+                </label>
+                <label class="tool3-label">
+                  <span>Time annotation label</span>
+                  <input class="tool3-input" id="tool3FrameTimeLabel" type="text" placeholder="Default: selected time column" />
+                </label>
+              </div>
               <div class="tool3-actions">
                 <button class="btn primary" id="tool3FramesZipBtn" type="button">Render frames ZIP</button>
                 <a class="btn" id="tool3FramesZipDownload" download="plot_frames.zip" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download frames ZIP</a>
               </div>
-              <div class="tool3-status" id="tool3FramesStatus">Render the selected plot into PNG frames and download them as a ZIP file.</div>
+              <div class="tool3-status" id="tool3FramesStatus">Render the selected plot into PNG frames and download them as a ZIP file. Higher export resolutions look better in presentations but create larger ZIP and GIF files.</div>
             </div>
           </div>
         </div>
@@ -254,6 +289,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="assets/js/tool3.js?v=gif-safe-encoder-3"></script>
+  <script src="assets/js/tool3.js?v=gif-safe-encoder-4"></script>
 </body>
 </html>

@@ -28,6 +28,12 @@
 
   const elFrames = $("tool3Frames");
   const elPointSize = $("tool3PointSize");
+  const elExportResolution = $("tool3ExportResolution");
+  const elFrameTitle = $("tool3FrameTitle");
+  const elFrameXLabel = $("tool3FrameXLabel");
+  const elFrameYLabel = $("tool3FrameYLabel");
+  const elFrameZLabel = $("tool3FrameZLabel");
+  const elFrameTimeLabel = $("tool3FrameTimeLabel");
   const elFramesZipBtn = $("tool3FramesZipBtn");
   const elFramesZipDownload = $("tool3FramesZipDownload");
   const elFramesStatus = $("tool3FramesStatus");
@@ -615,17 +621,17 @@
     return canvas;
   }
 
-  function drawBackground(ctx, w, h, title) {
+  function drawBackground(ctx, w, h, title, scale = 1) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "#111827";
-    ctx.font = "600 20px Inter, Arial, sans-serif";
-    ctx.fillText(title, 18, 28);
+    ctx.font = `600 ${Math.max(20, Math.round(20 * scale))}px Inter, Arial, sans-serif`;
+    ctx.fillText(title, Math.round(18 * scale), Math.round(28 * scale));
   }
 
-  function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax) {
+  function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale = 1) {
     ctx.strokeStyle = "#d1d5db";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(1, 1.2 * scale);
     ctx.beginPath();
     ctx.moveTo(pad.l, pad.t);
     ctx.lineTo(pad.l, pad.t + ih);
@@ -633,7 +639,7 @@
     ctx.stroke();
 
     ctx.fillStyle = "#6b7280";
-    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
     for (let k = 0; k <= 4; k++) {
       const frac = k / 4;
       const xx = pad.l + frac * iw;
@@ -649,8 +655,8 @@
       ctx.moveTo(xx, pad.t);
       ctx.lineTo(xx, pad.t + ih);
       ctx.stroke();
-      ctx.fillText(formatTick(yv), 8, yy + 4);
-      ctx.fillText(formatTick(xv), Math.max(pad.l - 12, xx - 12), pad.t + ih + 20);
+      ctx.fillText(formatTick(yv), Math.round(8 * scale), yy + Math.round(4 * scale));
+      ctx.fillText(formatTick(xv), Math.max(pad.l - Math.round(12 * scale), xx - Math.round(12 * scale)), pad.t + ih + Math.round(20 * scale));
     }
   }
 
@@ -700,23 +706,69 @@
     };
   }
 
-  function render2DTimeFrame(d, idx, cfg) {
+  function getFrameScale(cfg) {
+    return Math.max(cfg.width / 640, cfg.height / 420);
+  }
+
+  function getFrameConfig() {
+    const raw = safeText(elExportResolution && elExportResolution.value) || "1280x840";
+    const match = raw.match(/^(\d+)x(\d+)$/i);
+    if (!match) return { width: 1280, height: 840 };
+    return { width: parseInt(match[1], 10), height: parseInt(match[2], 10) };
+  }
+
+  function getFrameAnnotationConfig(current) {
+    const titleOverride = safeText(elFrameTitle && elFrameTitle.value);
+    const xOverride = safeText(elFrameXLabel && elFrameXLabel.value);
+    const yOverride = safeText(elFrameYLabel && elFrameYLabel.value);
+    const zOverride = safeText(elFrameZLabel && elFrameZLabel.value);
+    const timeOverride = safeText(elFrameTimeLabel && elFrameTimeLabel.value);
+
+    if (current.mapType === "time") {
+      const defaultTitle = current.frameDim === "2d"
+        ? `${current.yCol} vs ${current.xCol}`
+        : (current.useTimeAxis
+          ? `${current.xCol}, ${current.yCol}, ${current.tCol}`
+          : `${current.xCol}, ${current.yCol}, ${current.zCol}`);
+      return {
+        title: titleOverride || defaultTitle,
+        xLabel: xOverride || current.xCol,
+        yLabel: yOverride || current.yCol,
+        zLabel: zOverride || (current.useTimeAxis ? current.tCol : current.zCol),
+        timeLabel: timeOverride || current.tCol
+      };
+    }
+
+    const defaultTitle = current.frameDim === "2d"
+      ? `Return map: ${current.varCol}(n) vs ${current.varCol}(n+${current.lag})`
+      : `Return map: ${current.varCol}(n), ${current.varCol}(n+${current.lag}), ${current.tCol}`;
+    return {
+      title: titleOverride || defaultTitle,
+      xLabel: xOverride || `${current.varCol}(n)`,
+      yLabel: yOverride || `${current.varCol}(n+${current.lag})`,
+      zLabel: zOverride || current.tCol,
+      timeLabel: timeOverride || current.tCol
+    };
+  }
+
+  function render2DTimeFrame(d, idx, cfg, labels) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const scale = getFrameScale(cfg);
+    const pad = { l: Math.round(60 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(48 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
     const [xmin, xmax] = getMinMax(d.x);
     const [ymin, ymax] = getMinMax(d.y);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
 
-    drawBackground(ctx, w, h, `${d.yCol} vs ${d.xCol}`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
+    drawBackground(ctx, w, h, labels.title, scale);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -728,7 +780,7 @@
 
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(3, 3 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -737,31 +789,32 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
     ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(d.xCol, w / 2 - 10, h - 12);
+    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
+    ctx.fillText(labels.xLabel, w / 2 - Math.round(10 * scale), h - Math.round(12 * scale));
     ctx.save();
-    ctx.translate(16, h / 2 + 10);
+    ctx.translate(Math.round(16 * scale), h / 2 + Math.round(10 * scale));
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText(d.yCol, 0, 0);
+    ctx.fillText(labels.yLabel, 0, 0);
     ctx.restore();
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
+    ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
 
     return canvas;
   }
 
-  function render2DReturnFrame(d, idx, cfg) {
+  function render2DReturnFrame(d, idx, cfg, labels) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const pad = { l: 60, r: 24, t: 50, b: 48 };
+    const scale = getFrameScale(cfg);
+    const pad = { l: Math.round(60 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(48 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
     const all = d.x.concat(d.y);
     const [xmin, xmax] = getMinMax(all);
@@ -770,12 +823,13 @@
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
-    drawBackground(ctx, w, h, `Return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
+    drawBackground(ctx, w, h, labels.title, scale);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
     ctx.save();
     ctx.strokeStyle = "#9ca3af";
-    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = Math.max(1.5, 1.5 * scale);
+    ctx.setLineDash([Math.max(6, 6 * scale), Math.max(4, 4 * scale)]);
     ctx.beginPath();
     ctx.moveTo(xMap(xmin), yMap(xmin));
     ctx.lineTo(xMap(xmax), yMap(xmax));
@@ -786,13 +840,13 @@
     ctx.fillStyle = "#2563eb";
     for (let i = 0; i < d.x.length; i++) {
       ctx.beginPath();
-      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), Math.max(2.5, 2.5 * scale), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]);
@@ -801,34 +855,35 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
     ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`${d.varCol}(n)`, w / 2 - 24, h - 12);
+    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
+    ctx.fillText(labels.xLabel, w / 2 - Math.round(24 * scale), h - Math.round(12 * scale));
     ctx.save();
-    ctx.translate(16, h / 2 + 10);
+    ctx.translate(Math.round(16 * scale), h / 2 + Math.round(10 * scale));
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${d.varCol}(n+${d.lag})`, 0, 0);
+    ctx.fillText(labels.yLabel, 0, 0);
     ctx.restore();
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
+    ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
 
     return canvas;
   }
 
-  function render3DFrame(d, idx, cfg, title, xLabel, yLabel, zLabel) {
+  function render3DFrame(d, idx, cfg, labels) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const pad = { l: 24, r: 24, t: 50, b: 28 };
+    const scale = getFrameScale(cfg);
+    const pad = { l: Math.round(24 * scale), r: Math.round(24 * scale), t: Math.round(50 * scale), b: Math.round(28 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
-    drawBackground(ctx, w, h, title);
+    drawBackground(ctx, w, h, labels.title, scale);
     const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
@@ -837,7 +892,7 @@
 
     ctx.globalAlpha = 0.15;
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(2.5, 2.5 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const p = proj(i);
@@ -848,7 +903,7 @@
     ctx.globalAlpha = 1;
 
     ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(3, 3 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const p = proj(i);
@@ -858,7 +913,7 @@
     ctx.stroke();
 
     const point = proj(activeIdx);
-    const ps = clampInt(elPointSize.value, 4, 24, 11);
+    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.9 * scale);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
     ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
@@ -866,18 +921,18 @@
 
     ctx.restore();
     ctx.fillStyle = "#374151";
-    ctx.font = "12px Inter, Arial, sans-serif";
-    ctx.fillText(`x = ${xLabel}`, 18, h - 34);
-    ctx.fillText(`y = ${yLabel}`, 18, h - 18);
-    ctx.fillText(`z = ${zLabel}`, 180, h - 18);
-    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
-    if (d.t && d.t.length) ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
+    ctx.fillText(`x = ${labels.xLabel}`, Math.round(18 * scale), h - Math.round(34 * scale));
+    ctx.fillText(`y = ${labels.yLabel}`, Math.round(18 * scale), h - Math.round(18 * scale));
+    ctx.fillText(`z = ${labels.zLabel}`, Math.round(180 * scale), h - Math.round(18 * scale));
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - Math.round(130 * scale), Math.round(26 * scale));
+    if (d.t && d.t.length) ctx.fillText(`${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`, w - Math.round(170 * scale), Math.round(44 * scale));
 
     return canvas;
   }
 
   function buildFrameConfig() {
-    return { width: 640, height: 420 };
+    return getFrameConfig();
   }
 
   function buildFrameIndices(nPoints, nFrames) {
@@ -894,6 +949,7 @@
     const cfg = buildFrameConfig();
     const nFramesInput = clampInt(elFrames.value, 8, 120, 40);
     const current = getCurrentSpec();
+    const labels = getFrameAnnotationConfig(current);
     let frameIndices = [];
     let drawFrame = null;
     let outName = "plot_frames.zip";
@@ -904,29 +960,29 @@
 
     if (current.mapType === "time") {
       if (current.frameDim === "2d") {
-        drawFrame = (idx) => render2DTimeFrame(current, idx, cfg);
+        drawFrame = (idx) => render2DTimeFrame(current, idx, cfg, labels);
         outName = `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_map_frames.zip`;
       } else {
         const zLabel = current.useTimeAxis ? current.tCol : current.zCol;
         const title = current.useTimeAxis
           ? `${current.xCol}, ${current.yCol}, ${current.tCol}`
           : `${current.xCol}, ${current.yCol}, ${current.zCol}`;
-        drawFrame = (idx) => render3DFrame(current, idx, cfg, title, current.xCol, current.yCol, zLabel);
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, labels);
         outName = current.useTimeAxis
           ? `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_axis_frames.zip`
           : `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_${current.zCol.replace(/[^\w.-]+/g, "_")}_time_ordered_frames.zip`;
       }
     } else {
       if (current.frameDim === "2d") {
-        drawFrame = (idx) => render2DReturnFrame(current, idx, cfg);
+        drawFrame = (idx) => render2DReturnFrame(current, idx, cfg, labels);
         outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_lag${current.lag}_frames.zip`;
       } else {
-        drawFrame = (idx) => render3DFrame(current, idx, cfg, `Return map: ${current.varCol}(n), ${current.varCol}(n+${current.lag}), ${current.tCol}`, `${current.varCol}(n)`, `${current.varCol}(n+${current.lag})`, current.tCol);
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, labels);
         outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_3d_lag${current.lag}_frames.zip`;
       }
     }
 
-    return { cfg, frameIndices, drawFrame, outName };
+    return { cfg, frameIndices, drawFrame, outName, labels };
   }
 
   function canvasToPngBlob(canvas) {
@@ -974,7 +1030,7 @@
 
       state.frameZipUrl = URL.createObjectURL(zipBlob);
       setFramesZipDownloadEnabled(true, state.frameZipUrl, spec.outName);
-      setFramesStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created.`);
+      setFramesStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created at ${spec.cfg.width}×${spec.cfg.height}.`);
       if (elFramesZipDownload) elFramesZipDownload.click();
     } catch (err) {
       console.error(err);
@@ -1226,7 +1282,7 @@
       state.mergeGifUrl = URL.createObjectURL(blob);
       setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" style="max-width:100%; height:auto;" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps, ${width}×${height}.`);
     } catch (err) {
       console.error(err);
       setMergePreview("Could not merge that frame ZIP.");
