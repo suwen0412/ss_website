@@ -1,8 +1,5 @@
 (function () {
   const $ = (id) => document.getElementById(id);
-  const selValue = (el, fallback = "") => (
-    el && typeof el.value !== "undefined" ? el.value : fallback
-  );
 
   const elFile = $("tool3File");
   const elSheet = $("tool3Sheet");
@@ -226,7 +223,7 @@
   }
 
   function getVariableOptions() {
-    const timeGuess = selValue(elTimeCol) || guessTimeColumn();
+    const timeGuess = elTimeCol && elTimeCol.value ? elTimeCol.value : guessTimeColumn();
     const numeric = state.numericHeaders.length ? state.numericHeaders.slice() : state.headers.slice();
     const nonTime = numeric.filter((h) => h !== timeGuess);
     return nonTime.length ? nonTime : numeric;
@@ -334,17 +331,17 @@
   }
 
   function getTimeMapData() {
-    const frameDim = selValue(elFrameDim, "2d");
-    const tCol = selValue(elTimeCol) || guessTimeColumn();
-    const xCol = selValue(elX);
-    const yCol = selValue(elY);
-    const useTimeAxis = frameDim === "3d" && selValue(elUseTimeAxis, "yes") === "yes";
+    const frameDim = elFrameDim.value;
+    const tCol = elTimeCol.value;
+    const xCol = elX.value;
+    const yCol = elY.value;
+    const useTimeAxis = frameDim === "3d" && elUseTimeAxis.value === "yes";
 
-    const neededCols = [xCol, yCol].filter(Boolean);
+    const neededCols = [xCol, yCol];
     let zCol = "";
     if (frameDim === "3d" && !useTimeAxis) {
-      zCol = selValue(elZ);
-      if (zCol) neededCols.push(zCol);
+      zCol = elZ.value;
+      neededCols.push(zCol);
     }
 
     const pts = orderedRowsUsingTime(tCol, neededCols);
@@ -377,11 +374,11 @@
   }
 
   function getReturnMapData() {
-    const frameDim = selValue(elFrameDim, "2d");
-    const tCol = selValue(elTimeCol) || guessTimeColumn();
-    const varCol = selValue(elReturnVar);
-    const lag = clampInt(selValue(elLag, 1), 1, 100000, 1);
-    const pts = orderedRowsUsingTime(tCol, [varCol].filter(Boolean));
+    const frameDim = elFrameDim.value;
+    const tCol = elTimeCol.value;
+    const varCol = elReturnVar.value;
+    const lag = clampInt(elLag.value, 1, 100000, 1);
+    const pts = orderedRowsUsingTime(tCol, [varCol]);
 
     const signal = pts.map((p) => p[varCol]);
     const times = pts.map((p, i) => Number.isFinite(num(p.rawTime)) ? num(p.rawTime) : i);
@@ -408,7 +405,7 @@
   }
 
   function getCurrentSpec() {
-    if (selValue(elMapType, "time") === "return") return getReturnMapData();
+    if (elMapType.value === "return") return getReturnMapData();
     return getTimeMapData();
   }
 
@@ -544,9 +541,8 @@
   }
 
   function updateSummaryText() {
-    const frameDim = selValue(elFrameDim, "2d");
-    const mapType = selValue(elMapType, "time");
-    if (!elSummary) return;
+    const frameDim = elFrameDim.value;
+    const mapType = elMapType.value;
     if (mapType === "return") {
       if (frameDim === "3d") {
         elSummary.textContent = "3D return map selected. The frames use x = variable(n), y = variable(n+lag), and z = time.";
@@ -557,7 +553,7 @@
     }
 
     if (frameDim === "3d") {
-      if (selValue(elUseTimeAxis, "yes") === "yes") {
+      if (elUseTimeAxis.value === "yes") {
         elSummary.textContent = "3D time-dependent map selected with time as one axis. Choose x and y variables; z is the time column.";
       } else {
         elSummary.textContent = "3D time-dependent map selected without time as an axis. Choose x, y, z variables; the path still follows the chosen time order.";
@@ -569,9 +565,9 @@
   }
 
   function updatePanels() {
-    const isReturn = selValue(elMapType, "time") === "return";
-    const is3D = selValue(elFrameDim, "2d") === "3d";
-    const useTimeAxis = is3D && selValue(elUseTimeAxis, "yes") === "yes";
+    const isReturn = elMapType.value === "return";
+    const is3D = elFrameDim.value === "3d";
+    const useTimeAxis = is3D && elUseTimeAxis.value === "yes";
 
     if (elTimeMapControls) elTimeMapControls.classList.toggle("tool3-hidden", isReturn);
     if (elReturnControls) elReturnControls.classList.toggle("tool3-hidden", !isReturn);
@@ -1168,6 +1164,10 @@
       setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
       return;
     }
+    if (!window.GIF) {
+      setMergeStatus("GIF encoder library is missing. Please refresh the page and try again.");
+      return;
+    }
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1195,22 +1195,42 @@
 
       const width = images[0].naturalWidth || images[0].width;
       const height = images[0].naturalHeight || images[0].height;
-      const canvases = images.map((img) => {
+      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
+      const delayMs = Math.max(50, Math.round(1000 / fps));
+
+      const gif = new window.GIF({
+        workers: 2,
+        quality: 10,
+        width,
+        height,
+        workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js",
+        background: "#ffffff"
+      });
+
+      setMergeStatus("Encoding GIF…");
+      for (let i = 0; i < images.length; i++) {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        return canvas;
-      });
+        ctx.drawImage(images[i], 0, 0, width, height);
+        gif.addFrame(canvas, { copy: true, delay: delayMs });
+        if (i % 2 === 0 || i === images.length - 1) {
+          setMergeStatus(`Prepared frame ${i + 1} of ${images.length}…`);
+          await yieldToUi();
+        }
+      }
 
-      const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
-      const delayCs = Math.max(2, Math.round(100 / fps));
-      setMergeStatus("Writing merged GIF…");
-      const blob = encodeAnimatedGif(canvases, width, height, delayCs, (i, total) => {
-        if (i % 2 === 0 || i === total - 1) setMergeStatus(`Writing merged GIF… ${i + 1}/${total}`);
+      const blob = await new Promise((resolve, reject) => {
+        gif.on("progress", (p) => {
+          const pct = Math.max(0, Math.min(100, Math.round(p * 100)));
+          setMergeStatus(`Encoding GIF… ${pct}%`);
+        });
+        gif.on("finished", resolve);
+        gif.on("abort", () => reject(new Error("GIF encoding was aborted.")));
+        gif.render();
       });
 
       state.mergeGifUrl = URL.createObjectURL(blob);
@@ -1230,7 +1250,7 @@
   }
 
   function handleSheetChange() {
-    parseSheet(selValue(elSheet));
+    parseSheet(elSheet.value);
     refreshControls();
     updatePanels();
     renderCurrentPlot();
