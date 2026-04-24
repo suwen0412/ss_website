@@ -458,13 +458,24 @@
   }
 
   function build3DScene(xTitle, yTitle, zTitle) {
+    const axisStyle = (title) => ({
+      title,
+      automargin: true,
+      showbackground: false,
+      showspikes: false,
+      zeroline: false,
+      gridcolor: "rgba(148,163,184,0.35)",
+      linecolor: "#111827",
+      tickfont: { size: 11 },
+      titlefont: { size: 13 }
+    });
     return {
-      xaxis: { title: xTitle, automargin: true },
-      yaxis: { title: yTitle, automargin: true },
-      zaxis: { title: zTitle, automargin: true },
-      aspectmode: "data",
+      xaxis: axisStyle(xTitle),
+      yaxis: axisStyle(yTitle),
+      zaxis: axisStyle(zTitle),
+      aspectmode: "cube",
       dragmode: "turntable",
-      camera: { eye: { x: 1.55, y: 1.55, z: 1.15 } }
+      camera: { eye: { x: 1.75, y: -1.85, z: 1.15 }, up: { x: 0, y: 0, z: 1 } }
     };
   }
 
@@ -473,7 +484,7 @@
     if (d.frameDim === "3d") {
       const zTitle = d.useTimeAxis ? d.tCol : d.zCol;
       const traces = [
-        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Time-dependent path", line: { width: 5 } },
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines+markers", name: "Time-dependent path", line: { width: 5 }, marker: { size: 2.5, opacity: 0.7 } },
         { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
       const layout = {
@@ -481,9 +492,9 @@
         margin: { l: 10, r: 10, t: 56, b: 10 },
         scene: {
           ...build3DScene(d.xCol, d.yCol, zTitle),
-          xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { title: zTitle, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+          xaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).yaxis, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).zaxis, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
         },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
@@ -514,7 +525,7 @@
     const pointSize = clampInt(elPointSize.value, 4, 24, 11);
     if (d.frameDim === "3d") {
       const traces = [
-        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Return map path", line: { width: 4 } },
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines+markers", name: "Return map path", line: { width: 5 }, marker: { size: 2.5, opacity: 0.7 } },
         { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
       const layout = {
@@ -522,9 +533,9 @@
         margin: { l: 10, r: 10, t: 56, b: 10 },
         scene: {
           ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
-          xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { title: d.tCol, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+          xaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).yaxis, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).zaxis, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
         },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
@@ -568,7 +579,7 @@
     const layout = {
       title: `2D return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+      xaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
       yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
@@ -766,9 +777,9 @@
     const [ymin, ymax] = resolveAxisRange(ys, ranges.yMin, ranges.yMax);
     const [zmin, zmax] = resolveAxisRange(zs, ranges.zMin, ranges.zMax);
     const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
-    const az = Math.PI / 4.65;
-    const el = Math.PI / 6.3;
-    const camera = { distance: 4.8 };
+    const az = -Math.PI / 4.15;
+    const el = Math.PI / 5.7;
+    const camera = { distance: 5.6 };
 
     function rotatePoint(x, y, z) {
       const X = norm(x, xmin, xmax);
@@ -802,7 +813,7 @@
       minPY = Math.min(minPY, p.y);
       maxPY = Math.max(maxPY, p.y);
     }
-    const pad = 0.16;
+    const pad = 0.23;
     const sx = (maxPX - minPX) || 1;
     const sy = (maxPY - minPY) || 1;
     minPX -= sx * pad;
@@ -1153,7 +1164,7 @@
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
     const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(118 * scale), r: Math.round(118 * scale), t: Math.round(100 * scale), b: Math.round(100 * scale) };
+    const pad = { l: Math.round(130 * scale), r: Math.round(130 * scale), t: Math.round(105 * scale), b: Math.round(105 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
     drawBackground(ctx, w, h, labels.title, scale);
