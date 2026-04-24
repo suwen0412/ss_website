@@ -787,65 +787,36 @@
     const [xmin, xmax] = resolveAxisRange(xs, ranges.xMin, ranges.xMax);
     const [ymin, ymax] = resolveAxisRange(ys, ranges.yMin, ranges.yMax);
     const [zmin, zmax] = resolveAxisRange(zs, ranges.zMin, ranges.zMax);
-    const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
-    // Match the preview angle: x lower-left, y lower-right, z vertical.
-    // All axes are normalized before projection so selected variables always render clearly.
-    const az = -Math.PI / 4.0;
-    const el = Math.PI / 5.4;
-    const camera = { distance: 6.0 };
+    const norm01 = (v, lo, hi) => (v - lo) / ((hi - lo) || 1);
 
-    function rotatePoint(x, y, z) {
-      const X = norm(x, xmin, xmax);
-      const Y = norm(y, ymin, ymax);
-      const Z = norm(z, zmin, zmax);
-      const xr = Math.cos(az) * X - Math.sin(az) * Y;
-      const yr0 = Math.sin(az) * X + Math.cos(az) * Y;
-      const zr0 = Z;
-      const yr = Math.cos(el) * yr0 - Math.sin(el) * zr0;
-      const zr = Math.sin(el) * yr0 + Math.cos(el) * zr0;
-      return { x: xr, y: yr, z: zr };
-    }
+    // Open-axis 3D projection for exported frames:
+    // z is vertical at the left, x is along the bottom, and y begins at
+    // the end of x. This creates three open axis lines with two joints.
+    const zBase = { x: width * 0.17, y: height * 0.82 };
+    const zEnd  = { x: width * 0.17, y: height * 0.13 };
+    const xEnd  = { x: width * 0.68, y: height * 0.82 };
+    const yEnd  = { x: width * 0.90, y: height * 0.50 };
 
-    const rotated = xs.map((x, i) => rotatePoint(x, ys[i], zs[i]));
-    const projected = rotated.map((p) => projectPoint3D(p.x, p.y, p.z, camera));
+    const vx = { x: xEnd.x - zBase.x, y: xEnd.y - zBase.y };
+    const vy = { x: yEnd.x - xEnd.x, y: yEnd.y - xEnd.y };
+    const vz = { x: zEnd.x - zBase.x, y: zEnd.y - zBase.y };
 
-    const axisPointsRaw = {
-      origin: rotatePoint(xmin, ymin, zmin),
-      xEnd: rotatePoint(xmax, ymin, zmin),
-      yEnd: rotatePoint(xmin, ymax, zmin),
-      zEnd: rotatePoint(xmin, ymin, zmax)
-    };
-    const axisPointsProjected = Object.fromEntries(
-      Object.entries(axisPointsRaw).map(([k, p]) => [k, projectPoint3D(p.x, p.y, p.z, camera)])
-    );
-
-    let minPX = Infinity, maxPX = -Infinity, minPY = Infinity, maxPY = -Infinity;
-    for (const p of projected.concat(Object.values(axisPointsProjected))) {
-      minPX = Math.min(minPX, p.x);
-      maxPX = Math.max(maxPX, p.x);
-      minPY = Math.min(minPY, p.y);
-      maxPY = Math.max(maxPY, p.y);
-    }
-    const pad = 0.16;
-    const sx = (maxPX - minPX) || 1;
-    const sy = (maxPY - minPY) || 1;
-    minPX -= sx * pad;
-    maxPX += sx * pad;
-    minPY -= sy * pad;
-    maxPY += sy * pad;
-
-    function toCanvas(p) {
+    function toScreen(x, y, z) {
+      const X = norm01(x, xmin, xmax);
+      const Y = norm01(y, ymin, ymax);
+      const Z = norm01(z, zmin, zmax);
       return {
-        x: ((p.x - minPX) / ((maxPX - minPX) || 1)) * width,
-        y: height - ((p.y - minPY) / ((maxPY - minPY) || 1)) * height,
-        depth: p.depth,
-        rawZ: p.rawZ
+        x: zBase.x + X * vx.x + Y * vy.x + Z * vz.x,
+        y: zBase.y + X * vx.y + Y * vy.y + Z * vz.y,
+        depth: 1 + 0.25 * Y + 0.12 * Z,
+        rawZ: Z
       };
     }
 
+    const points = xs.map((x, i) => toScreen(x, ys[i], zs[i]));
     return {
-      points: projected.map(toCanvas),
-      axisPoints: Object.fromEntries(Object.entries(axisPointsProjected).map(([k, p]) => [k, toCanvas(p)])),
+      points,
+      axisPoints: { origin: zBase, xEnd, yEnd, zEnd },
       axisRanges: { xmin, xmax, ymin, ymax, zmin, zmax },
       projectIndex(i) { return this.points[i]; }
     };
@@ -853,21 +824,15 @@
 
   function draw3DAxesTripod(ctx, scene, scale, labels) {
     const { origin, xEnd, yEnd, zEnd } = scene.axisPoints;
-    const axes = [
-      [origin, xEnd, labels.xLabel, scene.axisRanges.xmin, scene.axisRanges.xmax],
-      [origin, yEnd, labels.yLabel, scene.axisRanges.ymin, scene.axisRanges.ymax],
-      [origin, zEnd, labels.zLabel, scene.axisRanges.zmin, scene.axisRanges.zmax]
-    ];
-    ctx.save();
-    ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    for (const [p1, p2, label, minV, maxV] of axes) {
+    const r = scene.axisRanges;
+
+    function drawLineWithArrow(p1, p2) {
       ctx.strokeStyle = "#111827";
-      ctx.lineWidth = Math.max(1.8, 2.0 * scale);
+      ctx.lineWidth = Math.max(2.0, 2.4 * scale);
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.stroke();
-
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.max(1, Math.hypot(dx, dy));
@@ -875,24 +840,58 @@
       const uy = dy / len;
       const px = -uy;
       const py = ux;
-      const ah = Math.max(7, 8 * scale);
+      const ah = Math.max(9, 10 * scale);
       ctx.beginPath();
       ctx.moveTo(p2.x, p2.y);
-      ctx.lineTo(p2.x - ux * ah + px * ah * 0.42, p2.y - uy * ah + py * ah * 0.42);
-      ctx.lineTo(p2.x - ux * ah - px * ah * 0.42, p2.y - uy * ah - py * ah * 0.42);
+      ctx.lineTo(p2.x - ux * ah + px * ah * 0.45, p2.y - uy * ah + py * ah * 0.45);
+      ctx.lineTo(p2.x - ux * ah - px * ah * 0.45, p2.y - uy * ah - py * ah * 0.45);
       ctx.closePath();
       ctx.fillStyle = "#111827";
       ctx.fill();
-
-      ctx.fillStyle = "#111827";
-      ctx.textAlign = dx >= 0 ? "left" : "right";
-      ctx.fillText(label, p2.x + px * 9 * scale + (dx >= 0 ? 7 * scale : -7 * scale), p2.y + py * 9 * scale - 4 * scale);
-
-      ctx.fillStyle = "#475569";
-      ctx.textAlign = "center";
-      ctx.fillText(formatTick(minV), p1.x - px * 9 * scale, p1.y - py * 9 * scale + 4 * scale);
-      ctx.fillText(formatTick(maxV), p2.x + px * 14 * scale, p2.y + py * 14 * scale + 4 * scale);
     }
+
+    function labelAlongAxis(text, p1, p2, along = 0.55, normalSign = 1, offset = 34) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const px = (-dy / len) * normalSign;
+      const py = (dx / len) * normalSign;
+      ctx.save();
+      ctx.fillStyle = "#111827";
+      ctx.font = `700 ${Math.max(14, Math.round(15 * scale))}px Inter, Arial, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, p1.x + dx * along + px * offset * scale, p1.y + dy * along + py * offset * scale);
+      ctx.restore();
+    }
+
+    function tickLabel(text, x, y, align = "center", baseline = "middle") {
+      ctx.save();
+      ctx.fillStyle = "#475569";
+      ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
+      ctx.textAlign = align;
+      ctx.textBaseline = baseline;
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+
+    ctx.save();
+    drawLineWithArrow(origin, zEnd);
+    drawLineWithArrow(origin, xEnd);
+    drawLineWithArrow(xEnd, yEnd);
+
+    // Axis titles are deliberately farther away from tick numbers.
+    labelAlongAxis(labels.zLabel, origin, zEnd, 0.55, -1, 46);
+    labelAlongAxis(labels.xLabel, origin, xEnd, 0.50, 1, 44);
+    labelAlongAxis(labels.yLabel, xEnd, yEnd, 0.58, -1, 50);
+
+    // Tick labels are offset away from axes and axis titles.
+    tickLabel(formatTick(r.zmin), origin.x - 20 * scale, origin.y + 8 * scale, "right", "middle");
+    tickLabel(formatTick(r.zmax), zEnd.x - 20 * scale, zEnd.y - 4 * scale, "right", "middle");
+    tickLabel(formatTick(r.xmin), origin.x, origin.y + 30 * scale, "center", "top");
+    tickLabel(formatTick(r.xmax), xEnd.x, xEnd.y + 30 * scale, "center", "top");
+    tickLabel(formatTick(r.ymin), xEnd.x + 18 * scale, xEnd.y + 20 * scale, "left", "top");
+    tickLabel(formatTick(r.ymax), yEnd.x + 20 * scale, yEnd.y - 4 * scale, "left", "middle");
     ctx.restore();
   }
 
