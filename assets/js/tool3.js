@@ -792,10 +792,10 @@
     // Open-axis 3D projection for exported frames:
     // z is vertical at the left, x is along the bottom, and y begins at
     // the end of x. This creates three open axis lines with two joints.
-    const zBase = { x: width * 0.17, y: height * 0.82 };
-    const zEnd  = { x: width * 0.17, y: height * 0.13 };
-    const xEnd  = { x: width * 0.68, y: height * 0.82 };
-    const yEnd  = { x: width * 0.90, y: height * 0.50 };
+    const zBase = { x: width * 0.17, y: height * 0.74 };
+    const zEnd  = { x: width * 0.17, y: height * 0.10 };
+    const xEnd  = { x: width * 0.66, y: height * 0.74 };
+    const yEnd  = { x: width * 0.89, y: height * 0.43 };
 
     const vx = { x: xEnd.x - zBase.x, y: xEnd.y - zBase.y };
     const vy = { x: yEnd.x - xEnd.x, y: yEnd.y - xEnd.y };
@@ -1176,7 +1176,7 @@
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
     const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(118 * scale), r: Math.round(118 * scale), t: Math.round(100 * scale), b: Math.round(100 * scale) };
+    const pad = { l: Math.round(126 * scale), r: Math.round(126 * scale), t: Math.round(104 * scale), b: Math.round(136 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
     drawBackground(ctx, w, h, labels.title, scale);
