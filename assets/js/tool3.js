@@ -428,9 +428,33 @@
     return out;
   }
 
+  function applyAxisFilterToSpec(spec) {
+    const ranges = getAxisScaleOverrides();
+    const keepX = (v) => ranges.xMin == null || v >= ranges.xMin;
+    const keepX2 = (v) => ranges.xMax == null || v <= ranges.xMax;
+    const keepY = (v) => ranges.yMin == null || v >= ranges.yMin;
+    const keepY2 = (v) => ranges.yMax == null || v <= ranges.yMax;
+    const keepZ = (v) => ranges.zMin == null || v >= ranges.zMin;
+    const keepZ2 = (v) => ranges.zMax == null || v <= ranges.zMax;
+
+    const out = { ...spec, x: [], y: [], z: [], t: [] };
+    for (let i = 0; i < spec.x.length; i++) {
+      const x = spec.x[i];
+      const y = spec.y[i];
+      const z = spec.frameDim === "3d" ? spec.z[i] : null;
+      const inRange = keepX(x) && keepX2(x) && keepY(y) && keepY2(y) && (spec.frameDim !== "3d" || (keepZ(z) && keepZ2(z)));
+      if (!inRange) continue;
+      out.x.push(x);
+      out.y.push(y);
+      out.t.push(spec.t[i]);
+      if (spec.frameDim === "3d") out.z.push(z);
+    }
+    return out;
+  }
+
   function getCurrentSpec() {
-    if (elMapType.value === "return") return getReturnMapData();
-    return getTimeMapData();
+    const raw = elMapType.value === "return" ? getReturnMapData() : getTimeMapData();
+    return applyAxisFilterToSpec(raw);
   }
 
   function build3DScene(xTitle, yTitle, zTitle) {
@@ -664,8 +688,8 @@
   function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale = 1) {
     const majorTicks = 5;
     ctx.save();
-    ctx.strokeStyle = "rgba(148,163,184,0.28)";
-    ctx.lineWidth = Math.max(0.8, 0.9 * scale);
+    ctx.strokeStyle = "rgba(15,23,42,0.10)";
+    ctx.lineWidth = Math.max(0.7, 0.9 * scale);
     for (let k = 0; k < majorTicks; k++) {
       const frac = k / (majorTicks - 1);
       const xx = pad.l + frac * iw;
@@ -680,8 +704,27 @@
       ctx.stroke();
     }
 
+    if (xmin < 0 && xmax > 0) {
+      const x0 = pad.l + ((0 - xmin) / ((xmax - xmin) || 1)) * iw;
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = Math.max(0.9, 1.05 * scale);
+      ctx.beginPath();
+      ctx.moveTo(x0, pad.t);
+      ctx.lineTo(x0, pad.t + ih);
+      ctx.stroke();
+    }
+    if (ymin < 0 && ymax > 0) {
+      const y0 = pad.t + ih - ((0 - ymin) / ((ymax - ymin) || 1)) * ih;
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = Math.max(0.9, 1.05 * scale);
+      ctx.beginPath();
+      ctx.moveTo(pad.l, y0);
+      ctx.lineTo(pad.l + iw, y0);
+      ctx.stroke();
+    }
+
     ctx.strokeStyle = "#111827";
-    ctx.lineWidth = Math.max(1.25, 1.3 * scale);
+    ctx.lineWidth = Math.max(1.25, 1.35 * scale);
     ctx.beginPath();
     ctx.moveTo(pad.l, pad.t);
     ctx.lineTo(pad.l, pad.t + ih);
@@ -787,15 +830,15 @@
   function draw3DAxesTripod(ctx, scene, scale, labels) {
     const { origin, xEnd, yEnd, zEnd } = scene.axisPoints;
     const axes = [
-      [origin, xEnd, "#2563eb", labels.xLabel, scene.axisRanges.xmin, scene.axisRanges.xmax],
-      [origin, yEnd, "#059669", labels.yLabel, scene.axisRanges.ymin, scene.axisRanges.ymax],
-      [origin, zEnd, "#dc2626", labels.zLabel, scene.axisRanges.zmin, scene.axisRanges.zmax]
+      [origin, xEnd, labels.xLabel, scene.axisRanges.xmin, scene.axisRanges.xmax],
+      [origin, yEnd, labels.yLabel, scene.axisRanges.ymin, scene.axisRanges.ymax],
+      [origin, zEnd, labels.zLabel, scene.axisRanges.zmin, scene.axisRanges.zmax]
     ];
     ctx.save();
     ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    for (const [p1, p2, color, label, minV, maxV] of axes) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(2.2, 2.4 * scale);
+    for (const [p1, p2, label, minV, maxV] of axes) {
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = Math.max(1.8, 2.0 * scale);
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
@@ -808,23 +851,23 @@
       const uy = dy / len;
       const px = -uy;
       const py = ux;
-      const ah = Math.max(8, 10 * scale);
+      const ah = Math.max(7, 8 * scale);
       ctx.beginPath();
       ctx.moveTo(p2.x, p2.y);
-      ctx.lineTo(p2.x - ux * ah + px * ah * 0.45, p2.y - uy * ah + py * ah * 0.45);
-      ctx.lineTo(p2.x - ux * ah - px * ah * 0.45, p2.y - uy * ah - py * ah * 0.45);
+      ctx.lineTo(p2.x - ux * ah + px * ah * 0.42, p2.y - uy * ah + py * ah * 0.42);
+      ctx.lineTo(p2.x - ux * ah - px * ah * 0.42, p2.y - uy * ah - py * ah * 0.42);
       ctx.closePath();
-      ctx.fillStyle = color;
+      ctx.fillStyle = "#111827";
       ctx.fill();
 
-      ctx.fillStyle = color;
+      ctx.fillStyle = "#111827";
       ctx.textAlign = dx >= 0 ? "left" : "right";
-      ctx.fillText(label, p2.x + px * 10 * scale + (dx >= 0 ? 8 * scale : -8 * scale), p2.y + py * 10 * scale - 4 * scale);
+      ctx.fillText(label, p2.x + px * 9 * scale + (dx >= 0 ? 7 * scale : -7 * scale), p2.y + py * 9 * scale - 4 * scale);
 
       ctx.fillStyle = "#475569";
       ctx.textAlign = "center";
-      ctx.fillText(formatTick(minV), p1.x - px * 10 * scale, p1.y - py * 10 * scale + 4 * scale);
-      ctx.fillText(formatTick(maxV), p2.x + px * 16 * scale, p2.y + py * 16 * scale + 4 * scale);
+      ctx.fillText(formatTick(minV), p1.x - px * 9 * scale, p1.y - py * 9 * scale + 4 * scale);
+      ctx.fillText(formatTick(maxV), p2.x + px * 14 * scale, p2.y + py * 14 * scale + 4 * scale);
     }
     ctx.restore();
   }
@@ -946,13 +989,13 @@
 
   function drawFrameHeader(ctx, w, scale, leftText, rightText) {
     ctx.save();
-    ctx.fillStyle = "#334155";
-    ctx.font = `600 ${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    if (leftText) ctx.fillText(leftText, Math.round(28 * scale), Math.round(34 * scale));
-    if (rightText) {
-      const metrics = ctx.measureText(rightText);
-      ctx.fillText(rightText, w - metrics.width - Math.round(28 * scale), Math.round(34 * scale));
-    }
+    const y = Math.round(64 * scale);
+    ctx.fillStyle = "#475569";
+    ctx.font = `500 ${Math.max(11, Math.round(11.5 * scale))}px Inter, Arial, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(leftText, Math.round(26 * scale), y);
+    ctx.textAlign = "right";
+    ctx.fillText(rightText, w - Math.round(26 * scale), y);
     ctx.restore();
   }
 
@@ -993,9 +1036,14 @@
     drawFrameHeader(ctx, w, scale, `Frame ${Math.max(0, Math.min(idx, d.x.length - 1)) + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[Math.max(0, Math.min(idx, d.x.length - 1))])}`);
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
-    ctx.globalAlpha = 0.16;
-    ctx.strokeStyle = "#1d4ed8";
-    ctx.lineWidth = Math.max(2.2, 2.4 * scale);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.l, pad.t, iw, ih);
+    ctx.clip();
+
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = Math.max(2.0, 2.2 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -1006,7 +1054,7 @@
     ctx.globalAlpha = 1;
 
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    ctx.strokeStyle = "#2563eb";
+    ctx.strokeStyle = "#0f172a";
     ctx.lineWidth = Math.max(2.8, 3.0 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
@@ -1017,10 +1065,15 @@
     ctx.stroke();
 
     const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
+    ctx.fillStyle = "rgba(220,38,38,0.16)";
+    ctx.beginPath();
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), Math.max(9, ps * 1.1), 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.52, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
     drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
@@ -1046,7 +1099,11 @@
     drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(75,85,99,0.75)";
+    ctx.beginPath();
+    ctx.rect(pad.l, pad.t, iw, ih);
+    ctx.clip();
+
+    ctx.strokeStyle = "rgba(75,85,99,0.70)";
     ctx.lineWidth = Math.max(1.2, 1.4 * scale);
     ctx.setLineDash([Math.max(6, 7 * scale), Math.max(4, 4 * scale)]);
     ctx.beginPath();
@@ -1064,7 +1121,7 @@
     }
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = "#2563eb";
+    ctx.strokeStyle = "#0f172a";
     ctx.lineWidth = Math.max(2.4, 2.6 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
@@ -1075,10 +1132,15 @@
     ctx.stroke();
 
     const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
+    ctx.fillStyle = "rgba(220,38,38,0.16)";
+    ctx.beginPath();
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), Math.max(9, ps * 1.1), 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.52, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
     drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
@@ -1101,10 +1163,13 @@
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
+    ctx.beginPath();
+    ctx.rect(0, 0, iw, ih);
+    ctx.clip();
     draw3DAxesTripod(ctx, scene, scale, labels);
 
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "#93c5fd";
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = "#94a3b8";
     ctx.lineWidth = Math.max(2.0, 2.2 * scale);
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
@@ -1114,7 +1179,7 @@
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = "#1d4ed8";
+    ctx.strokeStyle = "#0f172a";
     ctx.lineWidth = Math.max(2.7, 3.0 * scale);
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
