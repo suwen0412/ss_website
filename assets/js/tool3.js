@@ -458,25 +458,33 @@
   }
 
   function build3DScene(xTitle, yTitle, zTitle) {
-    const axisStyle = (title) => ({
-      title,
-      automargin: true,
-      showbackground: false,
-      showspikes: false,
-      zeroline: false,
-      gridcolor: "rgba(148,163,184,0.35)",
-      linecolor: "#111827",
-      tickfont: { size: 11 },
-      titlefont: { size: 13 }
-    });
+    // Fixed clear 3D camera + equal visual scaling. This prevents the preview
+    // from becoming flat or hidden after changing variables with very different ranges.
     return {
-      xaxis: axisStyle(xTitle),
-      yaxis: axisStyle(yTitle),
-      zaxis: axisStyle(zTitle),
+      xaxis: { title: xTitle, automargin: true, showspikes: false },
+      yaxis: { title: yTitle, automargin: true, showspikes: false },
+      zaxis: { title: zTitle, automargin: true, showspikes: false },
       aspectmode: "cube",
-      dragmode: "turntable",
-      camera: { eye: { x: 1.75, y: -1.85, z: 1.15 }, up: { x: 0, y: 0, z: 1 } }
+      dragmode: "orbit",
+      camera: {
+        eye: { x: 1.85, y: -1.85, z: 1.25 },
+        up: { x: 0, y: 0, z: 1 },
+        center: { x: 0, y: 0, z: 0 }
+      }
     };
+  }
+
+  function renderPlotly3D(target, traces, layout) {
+    const config = { responsive: true, displaylogo: false, scrollZoom: true };
+    Plotly.react(target, traces, layout, config).then(() => {
+      Plotly.relayout(target, {
+        "scene.aspectmode": "cube",
+        "scene.camera.eye": { x: 1.85, y: -1.85, z: 1.25 },
+        "scene.camera.up": { x: 0, y: 0, z: 1 },
+        "scene.camera.center": { x: 0, y: 0, z: 0 }
+      });
+      if (Plotly.Plots && Plotly.Plots.resize) Plotly.Plots.resize(target);
+    });
   }
 
   function renderTimePreview(d) {
@@ -484,7 +492,7 @@
     if (d.frameDim === "3d") {
       const zTitle = d.useTimeAxis ? d.tCol : d.zCol;
       const traces = [
-        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines+markers", name: "Time-dependent path", line: { width: 5 }, marker: { size: 2.5, opacity: 0.7 } },
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Time-dependent path", line: { width: 5 } },
         { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
       const layout = {
@@ -492,15 +500,15 @@
         margin: { l: 10, r: 10, t: 56, b: 10 },
         scene: {
           ...build3DScene(d.xCol, d.yCol, zTitle),
-          xaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).yaxis, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { ...build3DScene(d.xCol, d.yCol, zTitle).zaxis, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+          xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { title: zTitle, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
         },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
-      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
-      setMeta(`Showing ${d.x.length} valid points ordered by ${d.tCol}.`);
+      renderPlotly3D(elPlot, traces, layout);
+      setMeta(`Showing ${d.x.length} valid points ordered by ${d.tCol}. Preview uses equal visual scaling and a fixed clear 3D camera.`);
       return;
     }
 
@@ -525,7 +533,7 @@
     const pointSize = clampInt(elPointSize.value, 4, 24, 11);
     if (d.frameDim === "3d") {
       const traces = [
-        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines+markers", name: "Return map path", line: { width: 5 }, marker: { size: 2.5, opacity: 0.7 } },
+        { x: d.x, y: d.y, z: d.z, type: "scatter3d", mode: "lines", name: "Return map path", line: { width: 4 } },
         { x: d.x.length ? [d.x[d.x.length - 1]] : [], y: d.y.length ? [d.y[d.y.length - 1]] : [], z: d.z.length ? [d.z[d.z.length - 1]] : [], type: "scatter3d", mode: "markers", name: "Current point", marker: { size: pointSize } }
       ];
       const layout = {
@@ -533,15 +541,15 @@
         margin: { l: 10, r: 10, t: 56, b: 10 },
         scene: {
           ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
-          xaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).yaxis, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).zaxis, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
+          xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+          yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+          zaxis: { title: d.tCol, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
         },
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
-      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
-      setMeta(`Showing ${d.x.length} return-map points. Axes: x=${d.varCol}(n), y=${d.varCol}(n+${d.lag}), z=${d.tCol}.`);
+      renderPlotly3D(elPlot, traces, layout);
+      setMeta(`Showing ${d.x.length} return-map points. Axes: x=${d.varCol}(n), y=${d.varCol}(n+${d.lag}), z=${d.tCol}. Preview uses equal visual scaling and a fixed clear 3D camera.`);
       return;
     }
 
@@ -579,7 +587,7 @@
     const layout = {
       title: `2D return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol).xaxis, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
+      xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
       yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
@@ -762,12 +770,15 @@
   }
 
   function projectPoint3D(x, y, z, camera) {
+    // Mild perspective only; strong perspective compressed some 3D frames.
     const cz = z + camera.distance;
-    const perspective = camera.distance / Math.max(0.25, cz);
+    const perspective = camera.distance / Math.max(1.5, cz);
+    const mix = 0.18;
+    const p = 1 + (perspective - 1) * mix;
     return {
-      x: x * perspective,
-      y: y * perspective,
-      depth: perspective,
+      x: x * p,
+      y: y * p,
+      depth: p,
       rawZ: z
     };
   }
@@ -777,9 +788,11 @@
     const [ymin, ymax] = resolveAxisRange(ys, ranges.yMin, ranges.yMax);
     const [zmin, zmax] = resolveAxisRange(zs, ranges.zMin, ranges.zMax);
     const norm = (v, lo, hi) => ((v - lo) / ((hi - lo) || 1)) * 2 - 1;
-    const az = -Math.PI / 4.15;
-    const el = Math.PI / 5.7;
-    const camera = { distance: 5.6 };
+    // Match the preview angle: x lower-left, y lower-right, z vertical.
+    // All axes are normalized before projection so selected variables always render clearly.
+    const az = -Math.PI / 4.0;
+    const el = Math.PI / 5.4;
+    const camera = { distance: 6.0 };
 
     function rotatePoint(x, y, z) {
       const X = norm(x, xmin, xmax);
@@ -813,7 +826,7 @@
       minPY = Math.min(minPY, p.y);
       maxPY = Math.max(maxPY, p.y);
     }
-    const pad = 0.23;
+    const pad = 0.16;
     const sx = (maxPX - minPX) || 1;
     const sy = (maxPY - minPY) || 1;
     minPX -= sx * pad;
@@ -1164,7 +1177,7 @@
     const w = canvas.width, h = canvas.height;
     const scale = getFrameScale(cfg);
     const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(130 * scale), r: Math.round(130 * scale), t: Math.round(105 * scale), b: Math.round(105 * scale) };
+    const pad = { l: Math.round(118 * scale), r: Math.round(118 * scale), t: Math.round(100 * scale), b: Math.round(100 * scale) };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
     drawBackground(ctx, w, h, labels.title, scale);
