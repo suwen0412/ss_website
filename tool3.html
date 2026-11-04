@@ -1,323 +1,200 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tool 3 — Stepwise GIF Builder for Time-Series Data</title>
-  <meta name="description" content="Upload Excel or CSV, detect variables, choose 2D or 3D output frames, export a ZIP of frames, then merge the ZIP into a GIF." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
-  <link href="assets/css/style.css" rel="stylesheet" />
-  <style>
-    body{ background: var(--alt); }
-    .toolpage-wrap{ padding: 28px 0 48px; }
-    .toolpage-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
-    .toolpage-head h1{ margin:0; font-size: clamp(24px, 3vw, 36px); }
-    .toolpage-head p{ margin:.5rem 0 0; color:var(--muted); max-width: 880px; }
-    .tool3-shell{ display:flex; gap:1rem; align-items:flex-start; margin-top:1rem; }
-    .tool3-left{ width:430px; flex-shrink:0; position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; }
-    .tool3-right{ flex:1 1 auto; min-width:0; }
-    .tool3-panel + .tool3-panel{ margin-top:14px; }
-    .tool3-panel .card{ padding:18px; }
-    .tool3-step{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px; background:#b91c1c; color:#fff; font-weight:800; font-size:.9rem; margin-right:8px; }
-    .tool3-label{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; font-weight:600; }
-    .tool3-label span{ font-size:.95rem; }
-    .tool3-input, .tool3-select, .tool3-number{
-      width:100%; padding:.72rem .8rem; border-radius:14px; border:1px solid rgba(0,0,0,.12); background:#fff; font:inherit;
-    }
-    .tool3-grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-    .tool3-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-    .tool3-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-    .tool3-note{ color:#5b6472; font-size:.92rem; margin-top:6px; }
-    .tool3-status{ color:#5b6472; font-size:.92rem; margin-top:8px; }
-    .tool3-hidden{ display:none !important; }
-    .tool3-help{ background:#fff8f1; border:1px solid #f6d7ae; border-radius:14px; padding:12px 14px; color:#7c4a03; font-size:.93rem; }
-    .tool3-plotcard .card{ padding:18px; }
-    .tool3-plot{ width:100%; height:620px; border-radius:18px; overflow:hidden; border:1px solid rgba(0,0,0,.08); background:#fff; }
-    .tool3-meta{ margin-top:10px; color:#5b6472; font-size:.95rem; }
-    .tool3-gif-wrap{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start; }
-    .tool3-gif-preview{
-      width:100%; min-height:260px; border:1px dashed rgba(0,0,0,.14); border-radius:18px;
-      display:flex; align-items:center; justify-content:center; background:#fff; overflow:hidden; color:#6b7280; text-align:center; padding:18px;
-    }
-    .tool3-gif-preview img{ max-width:100%; display:block; }
-    .tool3-badge{
-      display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
-      background:rgba(185,28,28,.08); color:#991b1b; font-size:.86rem; font-weight:700;
-    }
-    .tool3-chip-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-    .tool3-chip{ display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:.84rem; font-weight:600; }
-    .tool3-subtle{ color:#6b7280; font-size:.9rem; }
-    .tool3-table-wrap{ margin-top:12px; overflow:auto; border:1px solid rgba(0,0,0,.08); border-radius:14px; background:#fff; }
-    .tool3-table{ width:100%; border-collapse:collapse; min-width:520px; }
-    .tool3-table th, .tool3-table td{ padding:10px 12px; border-bottom:1px solid rgba(0,0,0,.06); text-align:left; font-size:.9rem; }
-    .tool3-table th{ background:#f8fafc; position:sticky; top:0; }
-    .tool3-kv{ display:grid; grid-template-columns:140px 1fr; gap:6px 12px; font-size:.92rem; margin-top:10px; }
-    .tool3-kv strong{ color:#111827; }
-    @media (max-width: 1020px){
-      .tool3-shell{ flex-direction:column; }
-      .tool3-left{ width:100%; position:static; max-height:none; overflow:visible; }
-      .tool3-gif-wrap{ grid-template-columns:1fr; }
-    }
-  </style>
-</head>
-<body>
-  <main class="toolpage-wrap">
-    <div class="container">
-      <div class="toolpage-head">
-        <div>
-          <div class="tool3-badge">Tool 3 · Step-by-step · Browser only</div>
-          <h1>Stepwise GIF Builder for Time-Series Data</h1>
-          <p>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Tool 3 — Stepwise GIF Builder for Time-Series Data</title>
+<meta content="Upload Excel or CSV, detect variables, choose 2D or 3D output frames, export a ZIP of frames, then merge the ZIP into a GIF." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="assets/css/style.css" rel="stylesheet"/>
+
+<link href="assets/css/tool3.css" rel="stylesheet"/></head>
+<body class="tool3-page">
+<main class="toolpage-wrap">
+<div class="container">
+<div class="toolpage-head">
+<div>
+<div class="tool3-badge">Tool 3 · Step-by-step · Browser only</div>
+<h1>Stepwise GIF Builder for Time-Series Data</h1>
+<p>
             This version follows the same logic as your Jupyter workflow. First load the Excel or CSV file and detect the variables.
             Then choose whether the output frames should be 2D or 3D, choose whether you want a time-dependent map or a return map,
-            choose plotting variables including the time column if needed, export a ZIP of rendered frames, and finally upload that ZIP to create the GIF.
+            export a ZIP of rendered frames, and finally upload that ZIP to create the GIF.
           </p>
-        </div>
-        <div class="tool3-actions">
-          <a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
-          <a class="btn primary" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
-        </div>
-      </div>
-
-      <div class="tool3-shell">
-        <div class="tool3-left">
-          <div class="tool3-panel">
-            <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">1</span>Load the data and detect variables</h3>
-              <div class="tool3-help">
-                Upload your Excel or CSV file. The tool reads the sheet, finds the columns, suggests a time column, and lists the numeric variables. In Step 2 you can also choose the time column itself as a plotting variable.
+</div>
+<div class="tool3-actions">
+<a class="btn" href="index.html#toolkit">← Back to Toolkit</a>
+<a class="btn primary" download="" href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel</a>
+</div>
+</div>
+<div class="tool3-shell">
+<div class="tool3-left">
+<div class="tool3-panel">
+<div class="card">
+<h3 style="margin-top:0;"><span class="tool3-step">1</span>Load the data and detect variables</h3>
+<div class="tool3-help">
+                Upload your Excel or CSV file. The tool reads the sheet, finds the columns, suggests a time column, and lists the numeric variables.
               </div>
-              <label class="tool3-label">
-                <span>Excel or CSV file</span>
-                <input class="tool3-input" id="tool3File" type="file" accept=".xlsx,.xls,.csv,.txt" />
-              </label>
-              <label class="tool3-label">
-                <span>Sheet</span>
-                <select class="tool3-select" id="tool3Sheet"></select>
-              </label>
-              <label class="tool3-label">
-                <span>Time / order column</span>
-                <select class="tool3-select" id="tool3TimeCol"></select>
-              </label>
-              <div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
-              <div class="tool3-kv">
-                <strong>Detected file</strong><div id="tool3FileMeta">—</div>
-                <strong>Numeric variables</strong><div id="tool3NumericMeta">—</div>
-              </div>
-              <div class="tool3-chip-list" id="tool3Vars"></div>
-            </div>
-          </div>
-
-          <div class="tool3-panel">
-            <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">2</span>Choose frame output type and variables</h3>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>Output frames</span>
-                  <select class="tool3-select" id="tool3FrameDim">
-                    <option value="2d">2D frames</option>
-                    <option value="3d">3D frames</option>
-                  </select>
-                </label>
-                <label class="tool3-label">
-                  <span>Plot map</span>
-                  <select class="tool3-select" id="tool3MapType">
-                    <option value="time">Time-dependent map</option>
-                    <option value="return">Return map</option>
-                  </select>
-                </label>
-              </div>
-
-              <div id="tool3TimeMapControls">
-                <label class="tool3-label tool3-hidden" id="tool3UseTimeAxisWrap">
-                  <span>Use time as one axis in 3D</span>
-                  <select class="tool3-select" id="tool3UseTimeAxis">
-                    <option value="yes">Yes — z = time</option>
-                    <option value="no">No — choose x, y, z variables, but still follow time order</option>
-                  </select>
-                </label>
-                <div class="tool3-grid-3" id="tool3TimeVarsGrid">
-                  <label class="tool3-label">
-                    <span>X variable</span>
-                    <select class="tool3-select" id="tool3X"></select>
-                  </label>
-                  <label class="tool3-label">
-                    <span>Y variable</span>
-                    <select class="tool3-select" id="tool3Y"></select>
-                  </label>
-                  <label class="tool3-label" id="tool3ZWrap">
-                    <span>Z variable</span>
-                    <select class="tool3-select" id="tool3Z"></select>
-                  </label>
-                </div>
-              </div>
-
-              <div class="tool3-hidden" id="tool3ReturnControls">
-                <div class="tool3-grid-2">
-                  <label class="tool3-label">
-                    <span>Variable for return map</span>
-                    <select class="tool3-select" id="tool3ReturnVar"></select>
-                  </label>
-                  <label class="tool3-label">
-                    <span>Lag / skip steps</span>
-                    <input class="tool3-number" id="tool3Lag" type="number" min="1" step="1" value="1" />
-                  </label>
-                </div>
-                <div class="tool3-note" id="tool3ReturnNote">
+<label class="tool3-label">
+<span>Excel or CSV file</span>
+<input accept=".xlsx,.xls,.csv,.txt" class="tool3-input" id="tool3File" type="file"/>
+</label>
+<label class="tool3-label">
+<span>Sheet</span>
+<select class="tool3-select" id="tool3Sheet"></select>
+</label>
+<label class="tool3-label">
+<span>Time / order column</span>
+<select class="tool3-select" id="tool3TimeCol"></select>
+</label>
+<div class="tool3-status" id="tool3LoadStatus">Upload a file to begin.</div>
+<div class="tool3-kv">
+<strong>Detected file</strong><div id="tool3FileMeta">—</div>
+<strong>Numeric variables</strong><div id="tool3NumericMeta">—</div>
+</div>
+<div class="tool3-chip-list" id="tool3Vars"></div>
+</div>
+</div>
+<div class="tool3-panel">
+<div class="card">
+<h3 style="margin-top:0;"><span class="tool3-step">2</span>Choose frame output type and variables</h3>
+<div class="tool3-grid-2">
+<label class="tool3-label">
+<span>Output frames</span>
+<select class="tool3-select" id="tool3FrameDim">
+<option value="2d">2D frames</option>
+<option value="3d">3D frames</option>
+</select>
+</label>
+<label class="tool3-label">
+<span>Plot map</span>
+<select class="tool3-select" id="tool3MapType">
+<option value="time">Time-dependent map</option>
+<option value="return">Return map</option>
+</select>
+</label>
+</div>
+<div id="tool3TimeMapControls">
+<label class="tool3-label tool3-hidden" id="tool3UseTimeAxisWrap">
+<span>Use time as one axis in 3D</span>
+<select class="tool3-select" id="tool3UseTimeAxis">
+<option value="yes">Yes — z = time</option>
+<option value="no">No — choose x, y, z variables, but still follow time order</option>
+</select>
+</label>
+<div class="tool3-grid-3" id="tool3TimeVarsGrid">
+<label class="tool3-label">
+<span>X variable</span>
+<select class="tool3-select" id="tool3X"></select>
+</label>
+<label class="tool3-label">
+<span>Y variable</span>
+<select class="tool3-select" id="tool3Y"></select>
+</label>
+<label class="tool3-label" id="tool3ZWrap">
+<span>Z variable</span>
+<select class="tool3-select" id="tool3Z"></select>
+</label>
+</div>
+</div>
+<div class="tool3-hidden" id="tool3ReturnControls">
+<div class="tool3-grid-2">
+<label class="tool3-label">
+<span>Variable for return map</span>
+<select class="tool3-select" id="tool3ReturnVar"></select>
+</label>
+<label class="tool3-label">
+<span>Lag / skip steps</span>
+<input class="tool3-number" id="tool3Lag" min="1" step="1" type="number" value="1"/>
+</label>
+</div>
+<div class="tool3-note" id="tool3ReturnNote">
                   2D return map uses x = variable(n) and y = variable(n+lag). 3D return map uses z = time.
                 </div>
-              </div>
-              <div class="tool3-note" id="tool3Summary">After the file is loaded, the preview updates automatically when you change these settings.</div>
-            </div>
-          </div>
-
-          <div class="tool3-panel">
-            <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">3</span>Preview the selected map</h3>
-              <div class="tool3-note">
+</div>
+<div class="tool3-note" id="tool3Summary">After the file is loaded, the preview updates automatically when you change these settings.</div>
+</div>
+</div>
+<div class="tool3-panel">
+<div class="card">
+<h3 style="margin-top:0;"><span class="tool3-step">3</span>Preview the selected map</h3>
+<div class="tool3-note">
                 Preview here before exporting frames. Time-dependent maps follow the chosen time column. Return maps use variable(n) and variable(n+lag).
               </div>
-            </div>
-          </div>
-
-          <div class="tool3-panel">
-            <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">4</span>Render frames and download a ZIP</h3>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>Number of frames</span>
-                  <input class="tool3-number" id="tool3Frames" type="number" min="8" max="120" step="1" value="40" />
-                </label>
-                <label class="tool3-label">
-                  <span>Moving point size</span>
-                  <input class="tool3-number" id="tool3PointSize" type="number" min="4" max="24" step="1" value="11" />
-                </label>
-              </div>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>Export resolution</span>
-                  <select class="tool3-select" id="tool3ExportResolution">
-                    <option value="640x420">Standard · 640 × 420</option>
-                    <option value="960x630">Presentation · 960 × 630</option>
-                    <option value="1280x840" selected>High · 1280 × 840</option>
-                    <option value="1600x1050">Very high · 1600 × 1050</option>
-                  </select>
-                </label>
-                <label class="tool3-label">
-                  <span>Frame title override</span>
-                  <input class="tool3-input" id="tool3FrameTitle" type="text" placeholder="Leave blank to use automatic title" />
-                </label>
-              </div>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>X-axis label override</span>
-                  <input class="tool3-input" id="tool3FrameXLabel" type="text" placeholder="Leave blank to use selected variable" />
-                </label>
-                <label class="tool3-label">
-                  <span>Y-axis label override</span>
-                  <input class="tool3-input" id="tool3FrameYLabel" type="text" placeholder="Leave blank to use selected variable" />
-                </label>
-              </div>
-              <div class="tool3-grid-2">
-                <label class="tool3-label">
-                  <span>Z-axis label override</span>
-                  <input class="tool3-input" id="tool3FrameZLabel" type="text" placeholder="Only used for 3D frames" />
-                </label>
-                <label class="tool3-label">
-                  <span>Time annotation label</span>
-                  <input class="tool3-input" id="tool3FrameTimeLabel" type="text" placeholder="Default: selected time column" />
-                </label>
-              </div>
-              <div class="tool3-grid-3">
-                <label class="tool3-label">
-                  <span>X min</span>
-                  <input class="tool3-number" id="tool3AxisXMin" type="number" step="any" placeholder="Auto" />
-                </label>
-                <label class="tool3-label">
-                  <span>X max</span>
-                  <input class="tool3-number" id="tool3AxisXMax" type="number" step="any" placeholder="Auto" />
-                </label>
-                <label class="tool3-label">
-                  <span>Y min</span>
-                  <input class="tool3-number" id="tool3AxisYMin" type="number" step="any" placeholder="Auto" />
-                </label>
-              </div>
-              <div class="tool3-grid-3">
-                <label class="tool3-label">
-                  <span>Y max</span>
-                  <input class="tool3-number" id="tool3AxisYMax" type="number" step="any" placeholder="Auto" />
-                </label>
-                <label class="tool3-label">
-                  <span>Z min</span>
-                  <input class="tool3-number" id="tool3AxisZMin" type="number" step="any" placeholder="Auto" />
-                </label>
-                <label class="tool3-label">
-                  <span>Z max</span>
-                  <input class="tool3-number" id="tool3AxisZMax" type="number" step="any" placeholder="Auto" />
-                </label>
-              </div>
-              <div class="tool3-note">Leave any axis limit blank to keep it automatic. For 2D plots, only X and Y limits are used.</div>
-              <div class="tool3-actions">
-                <button class="btn primary" id="tool3FramesZipBtn" type="button">Render frames ZIP</button>
-                <a class="btn" id="tool3FramesZipDownload" download="plot_frames.zip" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download frames ZIP</a>
-              </div>
-              <div class="tool3-status" id="tool3FramesStatus">Render the selected plot into PNG frames and download them as a ZIP file. Higher export resolutions look better in presentations but create larger ZIP and GIF files.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tool3-right">
-          <div class="tool3-plotcard">
-            <div class="card">
-              <h3 style="margin-top:0;">Preview</h3>
-              <div class="tool3-plot" id="tool3Plot"></div>
-              <div class="tool3-meta" id="tool3Meta">Load a file to preview the selected map here.</div>
-              <div class="tool3-table-wrap">
-                <table class="tool3-table">
-                  <thead id="tool3PreviewHead"></thead>
-                  <tbody id="tool3PreviewBody"></tbody>
-                </table>
-              </div>
-              <div class="tool3-note">The table shows the first 5 rows of the selected sheet.</div>
-            </div>
-          </div>
-
-          <div class="tool3-panel" id="tool3MergeCard">
-            <div class="card">
-              <h3 style="margin-top:0;"><span class="tool3-step">5</span>Upload the frame ZIP and create the GIF</h3>
-              <div class="tool3-gif-wrap">
-                <div>
-                  <div class="tool3-gif-preview" id="tool3MergePreview">Upload a ZIP of PNG or JPG frames to preview the merged GIF here.</div>
-                  <div class="tool3-note" style="margin-top:10px;">This step only merges an uploaded frame ZIP into a GIF. It does not skip the frame-rendering step above.</div>
-                </div>
-                <div>
-                  <label class="tool3-label">
-                    <span>Frame ZIP file</span>
-                    <input class="tool3-input" id="tool3MergeZipFile" type="file" accept=".zip" />
-                  </label>
-                  <label class="tool3-label">
-                    <span>FPS</span>
-                    <input class="tool3-number" id="tool3MergeFps" type="number" min="1" max="20" step="1" value="8" />
-                  </label>
-                  <div class="tool3-actions">
-                    <button class="btn primary" id="tool3MergeGifBtn" type="button">Create GIF from ZIP</button>
-                    <a class="btn" id="tool3MergeGifDownload" download="merged_frames.gif" href="#" aria-disabled="true" style="pointer-events:none; opacity:.55;">Download GIF</a>
-                  </div>
-                  <div class="tool3-status" id="tool3MergeStatus">Upload a ZIP of PNG or JPG frames to merge them into a GIF here.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="assets/js/tool3.js?v=open-axes-two-joints-1"></script>
+</div>
+</div>
+<div class="tool3-panel">
+<div class="card">
+<h3 style="margin-top:0;"><span class="tool3-step">4</span>Render frames and download a ZIP</h3>
+<div class="tool3-grid-2">
+<label class="tool3-label">
+<span>Number of frames</span>
+<input class="tool3-number" id="tool3Frames" max="120" min="8" step="1" type="number" value="40"/>
+</label>
+<label class="tool3-label">
+<span>Moving point size</span>
+<input class="tool3-number" id="tool3PointSize" max="24" min="4" step="1" type="number" value="11"/>
+</label>
+</div>
+<div class="tool3-actions">
+<button class="btn primary" id="tool3FramesZipBtn" type="button">Render frames ZIP</button>
+<a aria-disabled="true" class="btn" download="plot_frames.zip" href="#" id="tool3FramesZipDownload" style="pointer-events:none; opacity:.55;">Download frames ZIP</a>
+</div>
+<div class="tool3-status" id="tool3FramesStatus">Render the selected plot into PNG frames and download them as a ZIP file.</div>
+</div>
+</div>
+</div>
+<div class="tool3-right">
+<div class="tool3-plotcard">
+<div class="card">
+<h3 style="margin-top:0;">Preview</h3>
+<div class="tool3-plot" id="tool3Plot"></div>
+<div class="tool3-meta" id="tool3Meta">Load a file to preview the selected map here.</div>
+<div class="tool3-table-wrap">
+<table class="tool3-table">
+<thead id="tool3PreviewHead"></thead>
+<tbody id="tool3PreviewBody"></tbody>
+</table>
+</div>
+<div class="tool3-note">The table shows the first 5 rows of the selected sheet.</div>
+</div>
+</div>
+<div class="tool3-panel" id="tool3MergeCard">
+<div class="card">
+<h3 style="margin-top:0;"><span class="tool3-step">5</span>Upload the frame ZIP and create the GIF</h3>
+<div class="tool3-gif-wrap">
+<div>
+<div class="tool3-gif-preview" id="tool3MergePreview">Upload a ZIP of PNG or JPG frames to preview the merged GIF here.</div>
+<div class="tool3-note" style="margin-top:10px;">This step only merges an uploaded frame ZIP into a GIF. It does not skip the frame-rendering step above.</div>
+</div>
+<div>
+<label class="tool3-label">
+<span>Frame ZIP file</span>
+<input accept=".zip" class="tool3-input" id="tool3MergeZipFile" type="file"/>
+</label>
+<label class="tool3-label">
+<span>FPS</span>
+<input class="tool3-number" id="tool3MergeFps" max="20" min="1" step="1" type="number" value="8"/>
+</label>
+<div class="tool3-actions">
+<button class="btn primary" id="tool3MergeGifBtn" type="button">Create GIF from ZIP</button>
+<a aria-disabled="true" class="btn" download="merged_frames.gif" href="#" id="tool3MergeGifDownload" style="pointer-events:none; opacity:.55;">Download GIF</a>
+</div>
+<div class="tool3-status" id="tool3MergeStatus">Upload a ZIP of PNG or JPG frames to merge them into a GIF here.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="assets/js/tool3.js"></script>
 </body>
 </html>

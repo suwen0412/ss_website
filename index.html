@@ -8,26 +8,15 @@
 <meta content="Personal research website for Suwen Shi." name="description"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&amp;display=swap" rel="stylesheet"/>
-<link href="assets/css/style.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="assets/css/style.css" rel="stylesheet"/>
 <!-- Minimal fallback styles to ensure Teaching shows even without timeline CSS -->
-<style>
-    .teaching-list { margin: 0; padding: 0; list-style: none; }
-    .teaching-item { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; padding: 1rem 0; border-top: 1px solid var(--border, #e5e7eb); }
-    .teaching-item:first-child { border-top: 0; }
-    .teaching-meta { font-weight: 600; opacity: .85; white-space: nowrap; }
-    .teaching-course { margin: 0 0 .25rem; font-size: 1.05rem; }
-    @media (max-width: 640px) {
-      .teaching-item { grid-template-columns: 1fr; }
-      .teaching-meta { margin-bottom: .25rem; }
-    }
-  </style>
-</link></head>
-<body>
+</head>
+<body class="research-site">
 <header class="site-header">
 <div class="container nav">
 <a class="brand" href="#home">Suwen<span> Shi</span></a>
-<nav>
+<nav aria-label="Main navigation" id="siteNavigation">
 <a href="#home">Home</a>
 <a href="#research">Research</a>
 <a href="#publications">Publications</a>
@@ -36,7 +25,7 @@
 <a href="#toolkit">Toolkit</a>
 <a href="#contact">Contact</a>
 </nav>
-<button aria-label="Toggle menu" class="menu-toggle" id="menuToggle">☰</button>
+<button aria-controls="siteNavigation" aria-expanded="false" aria-label="Toggle menu" class="menu-toggle" id="menuToggle" type="button">☰</button>
 </div>
 </header>
 <main>
@@ -44,7 +33,7 @@
 <div class="container hero-grid">
 <div class="hero-copy">
 <h1>Chemistry × Data Science</h1>
-<p class="lead" style="font-weight:700;color:#000;font-size:1.1rem;margin:0">
+<p class="lead">
             Chem is try — the art of transforming matter.<br/>
             Data is Do, Analyze, Think, Act — the art of transforming meaning.
           </p>
@@ -53,21 +42,21 @@
 <a class="btn" href="#publications">Read Publications</a>
 </div>
 </div>
-<div aria-label="Image carousel" class="carousel">
+<div aria-label="Image carousel" aria-roledescription="carousel" class="carousel" tabindex="0">
 <div class="slides">
-<figure class="slide current">
+<figure aria-label="Research figure 1 of 3" class="slide current">
 <img alt="AI-assisted cyclic voltammetry plot" src="assets/images/ai_plot_hero.png"/>
 </figure>
-<figure class="slide">
+<figure aria-label="Research figure 2 of 3" class="slide">
 <img alt="COMSOL simulation versus SEM comparison plot" src="assets/images/electrochemistry_figure_hero.png"/>
 </figure>
-<figure class="slide">
+<figure aria-label="Research figure 3 of 3" class="slide">
 <img alt="Uploaded research figure" src="assets/images/uploaded_figure_hero.png"/>
 </figure>
 </div>
 <button aria-label="Previous slide" class="ctrl prev">‹</button>
 <button aria-label="Next slide" class="ctrl next">›</button>
-<div aria-label="Choose slide" class="dots" role="tablist"></div>
+<div aria-label="Choose slide" class="dots"></div>
 </div>
 </div>
 </section>
@@ -138,14 +127,6 @@
         loadPubs();
       }
     </script>
-<style>
-      /* Publications minimal layout */
-      .pub-list { display: grid; gap: 1rem; }
-      .pub-item { padding: 1rem; border: 1px solid #e6e6e6; border-radius: 12px; background: #fff; }
-      .pub-title { margin: 0 0 .25rem; font-size: 1.05rem; }
-      .pub-meta { margin: 0; color: #555; font-size: .95rem; }
-      .muted { color: #666; }
-    </style>
 <!-- Revised Teaching section (robust, semantic, no dependency on .timeline) -->
 <section aria-labelledby="teaching-title" class="section" id="teaching">
 <div class="container narrow">
@@ -186,7 +167,7 @@
 <div class="container narrow">
 <h2>Toolkit</h2>
 <div class="cards">
-<div class="card">
+<div class="card tool-card">
 <h3>Tool 1 — Gamry DTA → Excel (Online)</h3>
 <p>
   Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
@@ -203,25 +184,24 @@
       Include header/metadata sheet
     </label>
 </div>
-<div class="actions">
+<div class="tool-card-footer"><div class="actions">
 <button class="btn primary" disabled="" id="convertBtn" type="button">Convert to .xlsx</button>
 <a class="btn" download="" href="assets/downloads/gamry_ec_dta_ui.zip">Download desktop version (.zip)</a>
-</div>
-<p aria-live="polite" class="muted small" id="toolkitStatus">
+</div><p aria-live="polite" class="muted small" id="toolkitStatus">
     Choose a file to enable conversion.
-  </p>
-<details class="toolkit-details">
+  </p><details class="toolkit-details">
 <summary>What will the Excel contain?</summary>
 <ul class="bullets" style="margin-top:.5rem">
 <li><strong>Sheet per curve:</strong> <code>Curve 1</code>, <code>Curve 2</code>, … (each <code>... TABLE</code> block (e.g., <code>ZCURVE TABLE</code>, <code>CURVE1 TABLE</code>))</li>
 <li><strong>Columns:</strong> exported as-is from the DTA table</li>
 <li><strong>Optional:</strong> a <code>Header</code> sheet with key/value metadata parsed from the file</li>
 </ul>
-</details>
-</div>
-</div>
+</details></div>
 
-<div class="card">
+
+</div>
+</div>
+<div class="card tool-card">
 <h3>Tool 2 — Equation + Data Visualizer (Online)</h3>
 <p>
   Plot custom equations and overlay them with experimental datasets from Excel/CSV.
@@ -229,34 +209,32 @@
   Everything runs locally in your browser (no uploads).
 </p>
 <ul class="bullets">
-  <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
-  <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
-  <li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
+<li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
+<li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
+<li><strong>Overlays:</strong> assign curves/datasets into up to 10 figures</li>
 </ul>
-<div class="actions">
-  <a class="btn primary" href="tool2.html" target="_blank" rel="noopener">Open Tool 2 (new window)</a>
-  <a class="btn" href="tool2.html">Open in this tab</a>
-</div>
-<p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p>
-</div>
+<div class="tool-card-footer"><div class="actions">
+<a class="btn primary" href="tool2.html" rel="noopener" target="_blank">Open Tool 2 (new window)</a>
+<a class="btn" href="tool2.html">Open in this tab</a>
+</div><p class="muted small">If a pop-up blocker interferes, use “Open in this tab”.</p></div>
 
-<div class="card">
-  <h3>Tool 3 — Time-Series Plotter &amp; Trajectory GIF (Online)</h3>
-  <p>
+</div>
+<div class="card tool-card">
+<h3>Tool 3 — Time-Series Plotter &amp; Trajectory GIF (Online)</h3>
+<p>
     Upload an Excel or CSV file in the browser, choose your columns, and make one of two plot types:
     a lag plot using variable(n) versus variable(n+skip), or a variable trajectory plot in 2D/3D.
   </p>
-  <ul class="bullets">
-    <li><strong>Upload first:</strong> choose a sheet, then select the time/variable columns</li>
-    <li><strong>Plot type A:</strong> plot <code>variable(n)</code> versus <code>variable(n+skip)</code> as a lag plot</li>
-    <li><strong>Plot type B:</strong> plot variable trajectories in <code>2D</code> or <code>3D</code> and export a moving-point GIF</li>
-  </ul>
-  <div class="actions">
-    <a class="btn primary" href="tool3.html">Open Tool 3 (online)</a>
-    <a class="btn" download href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
-  </div>
-  <p class="muted small">Everything runs locally in the browser. No server upload is required.</p>
-</div>
+<ul class="bullets">
+<li><strong>Upload first:</strong> choose a sheet, then select the time/variable columns</li>
+<li><strong>Plot type A:</strong> plot <code>variable(n)</code> versus <code>variable(n+skip)</code> as a lag plot</li>
+<li><strong>Plot type B:</strong> plot variable trajectories in <code>2D</code> or <code>3D</code> and export a moving-point GIF</li>
+</ul>
+<div class="tool-card-footer"><div class="actions">
+<a class="btn primary" href="tool3.html">Open Tool 3 (online)</a>
+<a class="btn" download="" href="assets/downloads/toolkit3_example_timeseries.xlsx">Download example Excel (.xlsx)</a>
+</div><p class="muted small">Everything runs locally in the browser. No server upload is required.</p></div>
+
 </div>
 </div>
 </div>
@@ -304,9 +282,6 @@
 <!-- Your site JS (menu, carousel, etc.) -->
 <script src="assets/js/main.js"></script>
 <noscript>
-<style>
-      .carousel .ctrl, .carousel .dots { display: none !important; }
-    </style>
 </noscript>
 </body>
 </html>

@@ -24,76 +24,11 @@
   }
   
   let _rzT = null;
-  function initSplitter() {
-  const layout = document.querySelector(".tool2-layout");
-  const split = document.querySelector(".tool2-splitter");
-  if (!layout || !split) return;
-
-  // Restore width
-  try {
-    const saved = localStorage.getItem("tool2_left_w");
-    if (saved) {
-      const px = Math.max(240, Math.min(520, parseInt(saved, 10)));
-      layout.style.setProperty("--tool2-left-w", px + "px");
-    }
-  } catch (e) {}
-
-  let dragging = false;
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
-  const onMove = (e) => {
-    if (!dragging) return;
-    const rect = layout.getBoundingClientRect();
-    const x = (e.touches ? e.touches[0].clientX : e.clientX);
-    const newW = clamp(x - rect.left, 240, 520);
-    layout.style.setProperty("--tool2-left-w", newW + "px");
-    try { localStorage.setItem("tool2_left_w", String(Math.round(newW))); } catch (err) {}
-    resizeAllPlots();
-    e.preventDefault();
-  };
-
-  const onUp = () => {
-    dragging = false;
-    document.body.classList.remove("tool2-dragging");
-    window.removeEventListener("mousemove", onMove);
-    window.removeEventListener("mouseup", onUp);
-    window.removeEventListener("touchmove", onMove, { passive: false });
-    window.removeEventListener("touchend", onUp);
-  };
-
-  const onDown = (e) => {
-    dragging = true;
-    document.body.classList.add("tool2-dragging");
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onUp);
-    e.preventDefault();
-  };
-
-  split.addEventListener("mousedown", onDown);
-  split.addEventListener("touchstart", onDown, { passive: false });
-
-  // Keyboard resize
-  split.addEventListener("keydown", (e) => {
-    const step = (e.shiftKey ? 20 : 10);
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    const current = parseInt(getComputedStyle(layout).getPropertyValue("--tool2-left-w")) || 320;
-    const next = clamp(current + (e.key === "ArrowRight" ? step : -step), 240, 520);
-    layout.style.setProperty("--tool2-left-w", next + "px");
-    try { localStorage.setItem("tool2_left_w", String(Math.round(next))); } catch (err) {}
-    resizeAllPlots();
-    e.preventDefault();
-  });
-}
-
-window.addEventListener("resize", () => {
+  window.addEventListener("resize", () => {
     clearTimeout(_rzT);
     _rzT = setTimeout(resizeAllPlots, 80);
   });
-  
-  
+
   const MAX_FIGS = 10;
 
   const $ = (id) => document.getElementById(id);
@@ -133,7 +68,7 @@ window.addEventListener("resize", () => {
   // ---- State ----
   const state = {
     float: {
-      autoFloat: true, enabled: false, fig: 1, left: null, top: null, w: null, h: null },
+      autoFloat: false, autoOn: false, enabled: false, fig: 1, left: null, top: null, w: null, h: null },
     datasets: [], // {id, name, x, y, fig, enabled}
     eqs: [],      // {id, name, expr, params:{}, compiled, fig, enabled, xMode:'range'|'dataset', datasetId:null}
     figMeta: [],  // [{title,xlabel,ylabel}]
@@ -154,15 +89,10 @@ window.addEventListener("resize", () => {
     return Number.isFinite(n) ? n : fallback;
   };
 
-  const round3 = (v) => {
-    const n = num(v, 0);
-    return Math.round(n * 1000) / 1000;
-  };
-
+  // Preserve scientific values and allow partial numeric edits without replacing them.
   const fmt3 = (v) => {
     const n = num(v, NaN);
-    if (!Number.isFinite(n)) return "";
-    return n.toFixed(3);
+    return Number.isFinite(n) ? String(Number(n.toPrecision(12))) : "";
   };
 
   const setStatus = (msg) => { if (elStatus) elStatus.textContent = msg; };
@@ -174,6 +104,7 @@ window.addEventListener("resize", () => {
     state._renderQueued = true;
     requestAnimationFrame(() => {
       state._renderQueued = false;
+      if (!state.hasRendered) return;
       try {
         renderPlots();
       } catch (e) {
@@ -269,9 +200,8 @@ window.addEventListener("resize", () => {
 
     updateDatasetUI();
     updateEqUI();
-  initFloatUI();
-  initAutoFloat();
-  initSplitter(); // refresh dataset dropdowns inside equations
+    scheduleRender(); // refresh dataset dropdowns inside equations
+    elFiles.value = "";
     setStatus(added ? `Loaded ${added} dataset(s). Assign them to figures and click “Render / Update plots”.` : "No numeric two-column datasets found in the uploaded files.");
   }
 
@@ -306,7 +236,7 @@ window.addEventListener("resize", () => {
 
   function compileEq(eq) {
     try {
-      eq.compiled = math.compile(eq.expr);
+      eq.compiled = math.compile(eq.expr.replace(/\bln\s*\(/g, "log("));
       return null;
     } catch (e) {
       eq.compiled = null;
@@ -333,7 +263,7 @@ window.addEventListener("resize", () => {
       }
 
       // math.js may return BigNumber/Complex; we only plot finite numbers
-      const yn = (typeof y === "number") ? y : parseFloat(String(y));
+      const yn = (typeof y === "number") ? y : (y && y.isBigNumber ? y.toNumber() : NaN);
       yVals.push(Number.isFinite(yn) ? yn : NaN);
     }
 
@@ -374,11 +304,11 @@ window.addEventListener("resize", () => {
   function autoRangeFor(v) {
     // Create a slider range centered on v.
     const val = num(v, 1);
-    const base = Math.max(1, Math.abs(val));
+    const base = Math.abs(val) || 1;
     const span = base * 2.5;
     const min = val - span;
     const max = val + span;
-    const step = Math.max(1e-6, (max - min) / 300);
+    const step = (max - min) / 300;
     return { min, max, step };
   }
 
@@ -403,7 +333,7 @@ window.addEventListener("resize", () => {
             Use
           </label>
 
-          <input class="tool2-name ds-name" type="text" value="${escapeHtml(d.name)}" />
+          <input class="tool2-name ds-name" aria-label="Dataset name" type="text" value="${escapeHtml(d.name)}" />
 
           <span class="muted small">(${d.x.length} pts)</span>
 
@@ -463,7 +393,7 @@ function paramInputsHTML(eq) {
           <span class="param-name">${escapeHtml(k)}</span>
         </div>
         <div class="param-inline">
-          <input class="param-val" type="number" step="0.001" value="${fmt3(v)}" />
+          <input class="param-val" type="number" step="any" aria-label="${escapeHtml(eq.name || "Equation")} parameter ${escapeHtml(k)}" value="${fmt3(v)}" />
         </div>
       </div>
     `;
@@ -486,7 +416,7 @@ function paramSlidersPanelHTML() {
       const v = num(eq.params[k], 1);
       if (!eq.paramRanges[k]) eq.paramRanges[k] = autoRangeFor(v);
       const r = eq.paramRanges[k];
-      const step = Math.max(r.step || 0.001, 0.001);
+      const step = r.step || 0.001;
 
       return `
         <div class="tool2-param tool2-slider-row" data-eqid="${escapeHtml(eq.id)}" data-p="${escapeHtml(k)}">
@@ -494,7 +424,7 @@ function paramSlidersPanelHTML() {
             <span class="name">${escapeHtml(k)}</span>
             <span class="val param-valtext">${fmt3(v)}</span>
           </div>
-          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="${step}" value="${round3(v)}" />
+          <input class="param-slider" type="range" min="${r.min}" max="${r.max}" step="any" aria-label="${escapeHtml(eq.name || "Equation")} parameter ${escapeHtml(k)} slider" value="${v}" />
           <div class="tool2-slider-meta">
             <span class="range param-range muted small">${fmt3(r.min)} ↔ ${fmt3(r.max)}</span>
             <button class="btn tiny param-rescale" type="button" title="Rescale slider around current value">Rescale</button>
@@ -533,6 +463,7 @@ function updateEqUI() {
 
     if (!state.eqs.length) {
       elEqList.innerHTML = `<p class="muted small">No equations yet. Click “Add equation”.</p>`;
+      updateParamSlidersUI();
       return;
     }
 
@@ -552,7 +483,7 @@ function updateEqUI() {
             Use
           </label>
 
-          <input class="tool2-expr eq-expr" type="text" value="${escapeHtml(eq.expr)}" placeholder="e.g., exp(x/a) + exp(b*x/tan(c))" />
+          <input class="tool2-expr eq-expr" aria-label="${escapeHtml(eq.name)} expression" spellcheck="false" type="text" value="${escapeHtml(eq.expr)}" placeholder="e.g., exp(x/a) + exp(b*x/tan(c))" />
 
           <label class="tool2-mini">
             <span>x source</span>
@@ -682,7 +613,7 @@ function bindParamControls(container, eqOpt) {
       const slider = card.querySelector(".param-slider");
       const inp = card.querySelector(".param-val");
       const valText = card.querySelector(".param-valtext");
-      if (inp) inp.value = fmt3(nv);
+      if (inp && inp !== document.activeElement) inp.value = fmt3(nv);
       if (valText) valText.textContent = fmt3(nv);
       if (slider) slider.value = nv;
     });
@@ -696,7 +627,7 @@ function bindParamControls(container, eqOpt) {
       if (slider) {
         slider.min = r.min;
         slider.max = r.max;
-        slider.step = Math.max(r.step || 0.001, 0.001);
+        slider.step = "any";
       }
       if (rangeText) rangeText.textContent = `${fmt3(r.min)} ↔ ${fmt3(r.max)}`;
     });
@@ -713,8 +644,15 @@ function bindParamControls(container, eqOpt) {
     const btnRescale = card.querySelector(".param-rescale");
 
     function setVal(v) {
-      const nv = round3(num(v, 1));
+      const nv = Number(v);
+      if (String(v).trim() === "" || !Number.isFinite(nv)) return;
       eq.params[key] = nv;
+      if (!eq.paramRanges) eq.paramRanges = {};
+      const r = eq.paramRanges[key];
+      if (!r || nv < r.min || nv > r.max) {
+        eq.paramRanges[key] = autoRangeFor(nv);
+        syncRanges(eq, key, eq.paramRanges[key]);
+      }
       syncAll(eq.id, key, nv);
       scheduleRender();
     }
@@ -723,7 +661,8 @@ function bindParamControls(container, eqOpt) {
       slider.addEventListener("input", (e) => setVal(e.target.value));
     }
     if (inp) {
-      inp.addEventListener("input", (e) => setVal(e.target.value));
+      inp.addEventListener("input", (e) => { if (e.target.validity.valid) setVal(e.target.value); });
+      inp.addEventListener("change", () => { inp.value = fmt3(eq.params[key]); });
     }
     if (btnRescale) {
       btnRescale.addEventListener("click", () => {
@@ -731,6 +670,7 @@ function bindParamControls(container, eqOpt) {
         eq.paramRanges = eq.paramRanges || {};
         eq.paramRanges[key] = r;
         syncRanges(eq, key, r);
+        syncAll(eq.id, key, eq.params[key]);
       });
     }
   });
@@ -780,24 +720,36 @@ function bindParamControls(container, eqOpt) {
   }
 
   function ensurePlotDivs(n) {
-    // auto-fit grid
-    elPlotGrid.innerHTML = "";
+    // Retain plot nodes during live updates: no scroll jumps, flicker, or lost zoom.
+    const empty = $("tool2Empty");
+    if (empty) empty.remove();
+    elPlotGrid.querySelectorAll(".plot-box").forEach(box => {
+      const index = Number(box.dataset.figure);
+      if (index > n) {
+        Plotly.purge(box.querySelector(".plot"));
+        box.remove();
+      }
+    });
     for (let i = 1; i <= n; i++) {
+      if ($(`tool2Fig${i}`)) continue;
       const box = document.createElement("div");
       box.className = "plot-box";
+      box.dataset.figure = String(i);
       const div = document.createElement("div");
       div.id = `tool2Fig${i}`;
       div.className = "plot";
+      div.setAttribute("aria-label", `Figure ${i} plot`);
       box.appendChild(div);
-
       const eqd = document.createElement("div");
       eqd.id = `tool2EqDisp${i}`;
       eqd.className = "plot-eq";
-      eqd.innerHTML = "<span class=\"muted small\">Equations will appear here after rendering.</span>";
       box.appendChild(eqd);
-
       elPlotGrid.appendChild(box);
     }
+  }
+
+  function showEmptyPlot() {
+    elPlotGrid.innerHTML = '<div class="tool2-empty" id="tool2Empty"><span class="tool2-empty-mark" aria-hidden="true">ƒ(x)</span><h3>Your visualization starts here</h3><p>Add an equation or upload a dataset, then select<br>“Render / Update plots”.</p></div>';
   }
 
   function updateEquationDisplays(n) {
@@ -848,18 +800,23 @@ function fillFloatFigOptions() {
 }
 
 
+function clampFloatGeometry() {
+  if (!elFloatWin || elFloatWin.style.display === "none") return;
+  const r = elFloatWin.getBoundingClientRect();
+  const maxW = Math.max(240, window.innerWidth - 24);
+  const maxH = Math.max(220, window.innerHeight - 24);
+  elFloatWin.style.width = Math.min(Math.max(280, r.width), maxW) + "px";
+  elFloatWin.style.height = Math.min(Math.max(280, r.height), maxH) + "px";
+  const w = elFloatWin.offsetWidth, h = elFloatWin.offsetHeight;
+  elFloatWin.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + "px";
+  elFloatWin.style.top = Math.max(12, Math.min(r.top, window.innerHeight - h - 12)) + "px";
+  elFloatWin.style.right = "auto";
+}
+
 function floatSetVisible(on) {
   if (!elFloatWin) return;
-
-  if (on) {
-    // Guard against a bad saved geometry (e.g., 0×0)
-    const w = parseInt(elFloatWin.style.width || "", 10);
-    const h = parseInt(elFloatWin.style.height || "", 10);
-    if (!w || w < 200) elFloatWin.style.width = "560px";
-    if (!h || h < 200) elFloatWin.style.height = "460px";
-  }
-
   elFloatWin.style.display = on ? "block" : "none";
+  if (on) clampFloatGeometry();
 }
 
 function updateFloatEq(fig, n) {
@@ -928,7 +885,7 @@ function renderFloatFromFigure(fig) {
   layout.showlegend = !!(elShowLegend && elShowLegend.checked);
   layout.legend = layout.legend || { orientation: "h" };
 
-  const config = { responsive: true, displaylogo: false };
+  const config = { responsive: true, displaylogo: false, scrollZoom: false };
 
   if (!data || !data.length) {
     // Placeholder (helps when user enables floating before first Render)
@@ -959,230 +916,136 @@ function renderFloatFromFigure(fig) {
 
 
 function persistFloatGeometry() {
-  if (!elFloatWin) return;
-
-  // If hidden (display:none) the rect will be 0×0; don't overwrite saved geometry.
-  const disp = (elFloatWin.style && elFloatWin.style.display) ? elFloatWin.style.display : "";
-  if (disp === "none") return;
-
+  if (!elFloatWin || elFloatWin.style.display === "none") return;
   const r = elFloatWin.getBoundingClientRect();
-  if (!r || r.width < 120 || r.height < 120) return;
-
-  state.float.left = Math.round(r.left);
-  state.float.top  = Math.round(r.top);
-  state.float.w    = Math.round(r.width);
-  state.float.h    = Math.round(r.height);
-  try { localStorage.setItem("tool2_float_geom", JSON.stringify(state.float)); } catch(e) {}
+  if (r.width < 120 || r.height < 120) return;
+  const g = { left: r.left, top: r.top, w: r.width, h: r.height, fig: state.float.fig };
+  try { localStorage.setItem("tool2_float_geom", JSON.stringify(g)); } catch(e) {}
 }
 
 function restoreFloatGeometry() {
-  if (!elFloatWin) return;
   try {
-    const raw = localStorage.getItem("tool2_float_geom");
-    if (!raw) return;
-    const g = JSON.parse(raw);
+    const g = JSON.parse(localStorage.getItem("tool2_float_geom") || "null");
     if (!g) return;
-    if (typeof g.left === "number") { elFloatWin.style.left = g.left + "px"; elFloatWin.style.right = "auto"; }
-    if (typeof g.top === "number")  { elFloatWin.style.top  = g.top + "px"; }
-    if (typeof g.w === "number")    { elFloatWin.style.width  = g.w + "px"; }
-    if (typeof g.h === "number")    { elFloatWin.style.height = g.h + "px"; }
-    if (typeof g.fig === "number")  { state.float.fig = g.fig; }
-    if (typeof g.enabled === "boolean") { state.float.enabled = g.enabled; }
+    for (const [key, css] of [["left","left"],["top","top"],["w","width"],["h","height"]]) {
+      if (Number.isFinite(g[key])) elFloatWin.style[css] = g[key] + "px";
+    }
+    if (Number.isFinite(g.left)) elFloatWin.style.right = "auto";
+    state.float.fig = clampInt(g.fig || 1, 1, MAX_FIGS);
   } catch(e) {}
+}
+
+function disableAutoFloat() {
+  state.float.autoFloat = false;
+  state.float.autoOn = false;
+  if (elAutoFloat) elAutoFloat.checked = false;
+  try { localStorage.setItem("tool2_auto_float", "false"); } catch(e) {}
 }
 
 function initFloatUI() {
-  if (!elFloatToggle || !elFloatFig || !elFloatWin) return;
-
+  if (!elFloatToggle || !elFloatWin || elFloatWin.dataset.initialized) return;
+  elFloatWin.dataset.initialized = "true";
   restoreFloatGeometry();
   fillFloatFigOptions();
-
-  elFloatToggle.checked = !!state.float.enabled;
-  floatSetVisible(!!state.float.enabled);
-
-  // figure select
+  elFloatToggle.checked = false;
+  floatSetVisible(false);
   elFloatFig.addEventListener("change", () => {
     state.float.fig = clampInt(elFloatFig.value, 1, clampInt(elFigCount.value, 1, MAX_FIGS));
-    persistFloatGeometry();
     if (state.float.enabled) renderFloatFromFigure(state.float.fig);
+    persistFloatGeometry();
   });
-
+  function closeFloat() {
+    persistFloatGeometry();
+    state.float.enabled = false;
+    elFloatToggle.checked = false;
+    floatSetVisible(false);
+    disableAutoFloat(); // Closing must stay closed until the user enables it again.
+  }
   elFloatToggle.addEventListener("change", () => {
-    state.float.enabled = !!elFloatToggle.checked;
-    floatSetVisible(state.float.enabled);
-    persistFloatGeometry();
-    if (state.float.enabled) renderFloatFromFigure(state.float.fig);
+    state.float.autoOn = false;
+    state.float.enabled = elFloatToggle.checked;
+    if (!state.float.enabled) return closeFloat();
+    floatSetVisible(true);
+    renderFloatFromFigure(state.float.fig);
   });
-
-  if (elFloatClose) {
-    elFloatClose.addEventListener("click", () => {
-      state.float.enabled = false;
-      elFloatToggle.checked = false;
-      floatSetVisible(false);
-      // Do not persist after hiding (would save 0×0)
-      try { localStorage.setItem("tool2_float_geom", JSON.stringify(state.float)); } catch(e) {}
-    });
+  elFloatClose.addEventListener("click", closeFloat);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && state.float.enabled) closeFloat(); });
+  let drag = null;
+  elFloatBar.addEventListener("pointerdown", e => {
+    if (e.target.closest("button") || e.button !== 0) return;
+    const r = elFloatWin.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };
+    elFloatBar.setPointerCapture(e.pointerId);
+    document.body.classList.add("tool2-float-dragging");
+    e.preventDefault();
+  });
+  elFloatBar.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const r = elFloatWin.getBoundingClientRect();
+    elFloatWin.style.left = Math.max(12,Math.min(drag.left + e.clientX - drag.x, window.innerWidth - r.width - 12)) + "px";
+    elFloatWin.style.top = Math.max(12,Math.min(drag.top + e.clientY - drag.y, window.innerHeight - r.height - 12)) + "px";
+    elFloatWin.style.right = "auto";
+  });
+  function endDrag() {
+    drag = null;
+    document.body.classList.remove("tool2-float-dragging");
+    persistFloatGeometry();
   }
-
-  // Drag to move
-  if (elFloatBar) {
-    let dragging = false;
-    let sx = 0, sy = 0, startLeft = 0, startTop = 0;
-
-    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
-    const onMove = (e) => {
-      if (!dragging) return;
-      const cx = (e.touches ? e.touches[0].clientX : e.clientX);
-      const cy = (e.touches ? e.touches[0].clientY : e.clientY);
-      const dx = cx - sx;
-      const dy = cy - sy;
-
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const rect = elFloatWin.getBoundingClientRect();
-
-      let nl = startLeft + dx;
-      let nt = startTop + dy;
-
-      // keep within viewport
-      nl = clamp(nl, 6, vw - rect.width - 6);
-      nt = clamp(nt, 6, vh - rect.height - 6);
-
-      elFloatWin.style.left = nl + "px";
-      elFloatWin.style.top = nt + "px";
-      elFloatWin.style.right = "auto";
-
-      e.preventDefault();
-    };
-
-    const onUp = () => {
-      if (!dragging) return;
-      dragging = false;
-      document.body.classList.remove("tool2-float-dragging");
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchmove", onMove, { passive: false });
-      window.removeEventListener("touchend", onUp);
-      persistFloatGeometry();
-    };
-
-    const onDown = (e) => {
-      // ignore if clicking close button
-      if (e.target && e.target.id === "tool2FloatClose") return;
-
-      const rect = elFloatWin.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      sx = (e.touches ? e.touches[0].clientX : e.clientX);
-      sy = (e.touches ? e.touches[0].clientY : e.clientY);
-      dragging = true;
-      document.body.classList.add("tool2-float-dragging");
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("touchmove", onMove, { passive: false });
-      window.addEventListener("touchend", onUp);
-      e.preventDefault();
-    };
-
-    elFloatBar.addEventListener("mousedown", onDown);
-    elFloatBar.addEventListener("touchstart", onDown, { passive: false });
-  }
-
-  // Resize observer to keep Plotly filling the window
-  try {
-    const ro = new ResizeObserver(() => {
-      if (state.float.enabled && elFloatPlot && window.Plotly) {
-        try { Plotly.Plots.resize(elFloatPlot); } catch(e) {}
+  elFloatBar.addEventListener("pointerup", endDrag);
+  elFloatBar.addEventListener("pointercancel", endDrag);
+  if (window.ResizeObserver) {
+    let frame;
+    new ResizeObserver(() => {
+      if (!state.float.enabled) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (window.Plotly) Plotly.Plots.resize(elFloatPlot);
         persistFloatGeometry();
-      }
-    });
-    ro.observe(elFloatWin);
-  } catch(e) {}
+      });
+    }).observe(elFloatWin);
+  }
+  window.addEventListener("resize", clampFloatGeometry);
 }
 
-
 function isAnyFigureFullyVisible() {
-  const n = clampInt(elFigCount.value, 1, MAX_FIGS);
-  for (let i = 1; i <= n; i++) {
-    const div = $(`tool2Fig${i}`);
-    if (!div) continue;
+  const headerBottom = document.querySelector(".site-header").getBoundingClientRect().bottom;
+  return [...elPlotGrid.querySelectorAll(".plot")].some(div => {
     const r = div.getBoundingClientRect();
-    const vh = window.innerHeight || document.documentElement.clientHeight;
-    const vw = window.innerWidth || document.documentElement.clientWidth;
-    const fully = (r.top >= 0 && r.left >= 0 && r.bottom <= vh && r.right <= vw);
-    if (fully) return true;
-  }
-  return false;
+    // A partial visible plot is still useful; do not pop up a window while scrolling it.
+    return r.bottom > headerBottom + 100 && r.top < window.innerHeight - 100;
+  });
 }
 
 function initAutoFloat() {
   if (!elAutoFloat) return;
-
-  // restore preference
-  try {
-    const raw = localStorage.getItem("tool2_auto_float");
-    if (raw !== null) {
-      const v = raw === "true";
-      state.float.autoFloat = v;
-      elAutoFloat.checked = v;
-    } else {
-      state.float.autoFloat = true;
-      elAutoFloat.checked = true;
+  try { state.float.autoFloat = localStorage.getItem("tool2_auto_float") === "true"; } catch(e) {}
+  elAutoFloat.checked = state.float.autoFloat;
+  function evaluate() {
+    const should = state.float.autoFloat && state.hasRendered && !isAnyFigureFullyVisible();
+    if (should && !state.float.enabled) {
+      state.float.autoOn = true;
+      state.float.enabled = true;
+      elFloatToggle.checked = true;
+      floatSetVisible(true);
+      renderFloatFromFigure(state.float.fig);
+    } else if (!should && state.float.autoOn) {
+      state.float.autoOn = false;
+      state.float.enabled = false;
+      elFloatToggle.checked = false;
+      floatSetVisible(false);
     }
-  } catch(e) {}
-
+  }
   elAutoFloat.addEventListener("change", () => {
-    state.float.autoFloat = !!elAutoFloat.checked;
+    state.float.autoFloat = elAutoFloat.checked;
     try { localStorage.setItem("tool2_auto_float", String(state.float.autoFloat)); } catch(e) {}
-    // run once immediately so user sees an effect
     evaluate();
   });
-
-  // Track whether floating was auto-enabled so we can auto-hide politely
-  let autoOn = false;
-
-  const debounce = (() => {
-    let t = 0;
-    return (fn) => {
-      clearTimeout(t);
-      t = setTimeout(fn, 180);
-    };
-  })();
-
-  function evaluate() {
-    if (!state.float.autoFloat) return;
-
-    const should = !isAnyFigureFullyVisible();
-
-    if (should && !state.float.enabled) {
-      state.float.enabled = true;
-      autoOn = true;
-      if (elFloatToggle) elFloatToggle.checked = true;
-      floatSetVisible(true);
-      persistFloatGeometry();
-      if (state.hasRendered) renderFloatFromFigure(state.float.fig || 1);
-    } else if (!should && autoOn && state.float.enabled) {
-      // Only auto-hide if we were the one that turned it on
-      state.float.enabled = false;
-      if (elFloatToggle) elFloatToggle.checked = false;
-      floatSetVisible(false);
-      persistFloatGeometry();
-      autoOn = false;
-    }
-  }
-
-  const maybe = () => debounce(evaluate);
-
-  if ("IntersectionObserver" in window && elPlotGrid) {
-    const obs = new IntersectionObserver(() => maybe(), { root: null, threshold: [0, 0.1, 0.25, 0.5, 1] });
-    obs.observe(elPlotGrid);
-  }
+  let timer;
+  const maybe = () => { clearTimeout(timer); timer = setTimeout(evaluate, 160); };
   window.addEventListener("scroll", maybe, { passive: true });
   window.addEventListener("resize", maybe);
-
-  setTimeout(evaluate, 220);
+  document.querySelector(".plot-area").addEventListener("scroll", maybe, { passive: true });
 }
-
 
 // ---- Rendering ----
   function linspace(a, b, n) {
@@ -1194,6 +1057,15 @@ function initAutoFloat() {
   }
 
   function renderPlots() {
+    if (!window.Plotly || !window.math) {
+      setStatus("Plotting libraries could not load. Check your connection and reload the page.");
+      return;
+    }
+    const xmin = Number(elXMin.value), xmax = Number(elXMax.value);
+    if (elXMin.value === "" || elXMax.value === "" || !Number.isFinite(xmin) || !Number.isFinite(xmax) || xmin >= xmax) {
+      setStatus("Enter a valid x range: x min must be less than x max.");
+      return;
+    }
     const n = clampInt(elFigCount.value, 1, MAX_FIGS);
     ensureFigMeta(n);
     ensurePlotDivs(n);
@@ -1215,6 +1087,7 @@ function initAutoFloat() {
     }
 
     // equations
+    const issues = [];
     const xMin = num(elXMin.value, -1);
     const xMax = num(elXMax.value, 1);
     const Npts = clampInt(elN.value, 50, 5000);
@@ -1231,10 +1104,11 @@ function initAutoFloat() {
       }
 
       const { x, y, error } = evalEq(eq, xVals);
-      if (error) {
-        console.warn("Equation eval error:", eq.expr, error);
-        continue;
-      }
+      const row = [...elEqList.querySelectorAll(".tool2-item.eq")].find(r => r.dataset.id === eq.id);
+      const errorEl = row && row.querySelector(".tool2-error");
+      const message = error ? "Check the equation syntax and parameter values." : (!y.some(Number.isFinite) ? "No finite values in this x range. Check the function domain and parameters." : "");
+      if (errorEl) { errorEl.textContent = message; errorEl.style.display = message ? "" : "none"; }
+      if (message) { issues.push(eq.name || "Equation"); continue; }
 
       tracesByFig[fig - 1].push({
         x,
@@ -1250,15 +1124,19 @@ function initAutoFloat() {
       const meta = state.figMeta[i - 1] || { title: `Figure ${i}`, xlabel: "x", ylabel: "y" };
 
       const layout = {
-        title: { text: meta.title },
-        margin: { l: 60, r: 20, t: 45, b: 55 },
-        xaxis: { title: { text: meta.xlabel } },
-        yaxis: { title: { text: meta.ylabel } },
+        title: { text: meta.title, x: .08, font: { size: 16 } },
+        font: { family: "Inter, Arial, sans-serif", size: 12, color: "#334556" },
+        colorway: ["#922b3e", "#30648a", "#458275", "#b38641", "#716091", "#6b8799"],
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+        margin: { l: 64, r: 24, t: 55, b: 68 },
+        xaxis: { title: { text: meta.xlabel }, automargin: true, gridcolor: "#edf0f2", zerolinecolor: "#cbd3d9", linecolor: "#cbd3d9", showline: true, ticks: "outside" },
+        yaxis: { title: { text: meta.ylabel }, automargin: true, gridcolor: "#edf0f2", zerolinecolor: "#cbd3d9", linecolor: "#cbd3d9", showline: true, ticks: "outside" },
         showlegend: showLegend,
-        legend: { orientation: "h" }
+        legend: { orientation: "h", y: -.22, x: 0 },
+        uirevision: `tool2-figure-${i}`
       };
 
-      const config = { responsive: true, displaylogo: false };
+      const config = { responsive: true, displaylogo: false, scrollZoom: false };
 
       const traces = tracesByFig[i - 1];
       if (traces.length) renderedAny = true;
@@ -1281,7 +1159,8 @@ function initAutoFloat() {
       renderFloatFromFigure(state.float.fig || 1);
     }
 
-    setStatus(renderedAny ? "Plots updated." : "Nothing to plot yet. Enable at least one dataset or equation.");
+    state.plotSpecs.length = n;
+    setStatus(issues.length ? `Check ${issues.join(", ")}: invalid equation or no finite values in this range.` : (renderedAny ? "Plots updated." : "Nothing to plot yet. Enable at least one dataset or equation."));
   }
 
   function clearPlots() {
@@ -1290,8 +1169,14 @@ function initAutoFloat() {
       const div = $(`tool2Fig${i}`);
       if (div) Plotly.purge(div);
     }
-    elPlotGrid.innerHTML = "";
-    setStatus("Cleared.");
+    showEmptyPlot();
+    if (window.Plotly) Plotly.purge(elFloatPlot);
+    elFloatEq.innerHTML = "";
+    state.float.enabled = false;
+    state.float.autoOn = false;
+    elFloatToggle.checked = false;
+    floatSetVisible(false);
+    setStatus("Plots cleared. Your equations and datasets are kept for the next render.");
     state.hasRendered = false;
     state.plotSpecs = [];
     state._renderQueued = false;
@@ -1315,17 +1200,25 @@ function initAutoFloat() {
     };
     state.eqs.push(eq);
     updateEqUI();
+    scheduleRender();
   });
 
-  elFigCount.addEventListener("change", () => {
-    elFigCount.value = clampInt(elFigCount.value, 1, MAX_FIGS);
+  let previousFigCount = clampInt(elFigCount.value, 1, MAX_FIGS);
+  function updateFigureCount() {
+    const n = clampInt(elFigCount.value, 1, MAX_FIGS);
+    elFigCount.value = n;
+    if (n === previousFigCount) return;
+    previousFigCount = n;
     updateFigSettingsUI();
     updateDatasetUI();
     updateEqUI();
-    updateParamSlidersUI();
     fillFloatFigOptions();
     scheduleRender();
+  }
+  elFigCount.addEventListener("input", () => {
+    if (elFigCount.value !== "" && elFigCount.validity.valid) updateFigureCount();
   });
+  elFigCount.addEventListener("change", updateFigureCount);
 
   // Live update controls
   [elXMin, elXMax, elN].forEach((el) => {
@@ -1338,9 +1231,7 @@ function initAutoFloat() {
   elRender.addEventListener("click", () => {
     try {
       renderPlots();
-      state.hasRendered = true;
-
-    resizeAllPlots();
+      resizeAllPlots();
     } catch (e) {
       console.error(e);
       setStatus("Render failed. Check your equation syntax and uploaded data.");
@@ -1354,5 +1245,17 @@ function initAutoFloat() {
   updateDatasetUI();
   updateEqUI();
   initFloatUI();
+  initAutoFloat();
+  if (window.ResizeObserver) {
+    let timer;
+    new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(resizeAllPlots, 80);
+    }).observe(document.querySelector(".plot-area"));
+  }
+  // Scrolling over a number field should scroll the page, not change scientific inputs.
+  document.addEventListener("wheel", e => {
+    if (e.target instanceof HTMLInputElement && e.target.type === "number" && e.target === document.activeElement) e.target.blur();
+  }, { passive: true });
   setStatus("Tip: upload data, add an equation, then click “Render / Update plots”.");
 })();

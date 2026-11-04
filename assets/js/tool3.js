@@ -28,18 +28,6 @@
 
   const elFrames = $("tool3Frames");
   const elPointSize = $("tool3PointSize");
-  const elExportResolution = $("tool3ExportResolution");
-  const elFrameTitle = $("tool3FrameTitle");
-  const elFrameXLabel = $("tool3FrameXLabel");
-  const elFrameYLabel = $("tool3FrameYLabel");
-  const elFrameZLabel = $("tool3FrameZLabel");
-  const elFrameTimeLabel = $("tool3FrameTimeLabel");
-  const elAxisXMin = $("tool3AxisXMin");
-  const elAxisXMax = $("tool3AxisXMax");
-  const elAxisYMin = $("tool3AxisYMin");
-  const elAxisYMax = $("tool3AxisYMax");
-  const elAxisZMin = $("tool3AxisZMin");
-  const elAxisZMax = $("tool3AxisZMax");
   const elFramesZipBtn = $("tool3FramesZipBtn");
   const elFramesZipDownload = $("tool3FramesZipDownload");
   const elFramesStatus = $("tool3FramesStatus");
@@ -93,14 +81,6 @@
     const n = parseInt(v, 10);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(lo, Math.min(hi, n));
-  }
-
-  function optionalFloat(v) {
-    if (v == null) return null;
-    const s = safeText(v);
-    if (!s) return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
   }
 
   function yieldToUi() {
@@ -243,8 +223,10 @@
   }
 
   function getVariableOptions() {
+    const timeGuess = elTimeCol && elTimeCol.value ? elTimeCol.value : guessTimeColumn();
     const numeric = state.numericHeaders.length ? state.numericHeaders.slice() : state.headers.slice();
-    return numeric.length ? numeric : state.headers.slice();
+    const nonTime = numeric.filter((h) => h !== timeGuess);
+    return nonTime.length ? nonTime : numeric;
   }
 
   function renderVariableBadges() {
@@ -273,19 +255,13 @@
 
   function refreshControls() {
     const timeGuess = guessTimeColumn();
-    const prevTime = elTimeCol && elTimeCol.value ? elTimeCol.value : "";
-    const prevX = elX && elX.value ? elX.value : "";
-    const prevY = elY && elY.value ? elY.value : "";
-    const prevZ = elZ && elZ.value ? elZ.value : "";
-    const prevReturnVar = elReturnVar && elReturnVar.value ? elReturnVar.value : "";
-
-    optionList(elTimeCol, state.headers, prevTime || timeGuess);
+    optionList(elTimeCol, state.headers, timeGuess);
 
     const vars = getVariableOptions();
-    optionList(elX, vars, prevX || vars[0] || "");
-    optionList(elY, vars, prevY || vars[1] || vars[0] || "");
-    optionList(elZ, vars, prevZ || vars[2] || vars[0] || "");
-    optionList(elReturnVar, vars, prevReturnVar || vars[0] || "");
+    optionList(elX, vars, vars[0] || "");
+    optionList(elY, vars, vars[1] || vars[0] || "");
+    optionList(elZ, vars, vars[2] || vars[0] || "");
+    optionList(elReturnVar, vars, vars[0] || "");
 
     if (elFileMeta) elFileMeta.textContent = state.fileName || "—";
     if (elNumericMeta) elNumericMeta.textContent = state.numericHeaders.length ? `${state.numericHeaders.length} detected` : "0 detected";
@@ -428,63 +404,20 @@
     return out;
   }
 
-  function applyAxisFilterToSpec(spec) {
-    const ranges = getAxisScaleOverrides();
-    const keepX = (v) => ranges.xMin == null || v >= ranges.xMin;
-    const keepX2 = (v) => ranges.xMax == null || v <= ranges.xMax;
-    const keepY = (v) => ranges.yMin == null || v >= ranges.yMin;
-    const keepY2 = (v) => ranges.yMax == null || v <= ranges.yMax;
-    const keepZ = (v) => ranges.zMin == null || v >= ranges.zMin;
-    const keepZ2 = (v) => ranges.zMax == null || v <= ranges.zMax;
-
-    const out = { ...spec, x: [], y: [], z: [], t: [] };
-    for (let i = 0; i < spec.x.length; i++) {
-      const x = spec.x[i];
-      const y = spec.y[i];
-      const z = spec.frameDim === "3d" ? spec.z[i] : null;
-      const inRange = keepX(x) && keepX2(x) && keepY(y) && keepY2(y) && (spec.frameDim !== "3d" || (keepZ(z) && keepZ2(z)));
-      if (!inRange) continue;
-      out.x.push(x);
-      out.y.push(y);
-      out.t.push(spec.t[i]);
-      if (spec.frameDim === "3d") out.z.push(z);
-    }
-    return out;
-  }
-
   function getCurrentSpec() {
-    const raw = elMapType.value === "return" ? getReturnMapData() : getTimeMapData();
-    return applyAxisFilterToSpec(raw);
+    if (elMapType.value === "return") return getReturnMapData();
+    return getTimeMapData();
   }
 
   function build3DScene(xTitle, yTitle, zTitle) {
-    // Fixed clear 3D camera + equal visual scaling. This prevents the preview
-    // from becoming flat or hidden after changing variables with very different ranges.
     return {
-      xaxis: { title: xTitle, automargin: true, showspikes: false },
-      yaxis: { title: yTitle, automargin: true, showspikes: false },
-      zaxis: { title: zTitle, automargin: true, showspikes: false },
-      aspectmode: "cube",
-      dragmode: "orbit",
-      camera: {
-        eye: { x: 1.85, y: -1.85, z: 1.25 },
-        up: { x: 0, y: 0, z: 1 },
-        center: { x: 0, y: 0, z: 0 }
-      }
+      xaxis: { title: xTitle, automargin: true },
+      yaxis: { title: yTitle, automargin: true },
+      zaxis: { title: zTitle, automargin: true },
+      aspectmode: "data",
+      dragmode: "turntable",
+      camera: { eye: { x: 1.55, y: 1.55, z: 1.15 } }
     };
-  }
-
-  function renderPlotly3D(target, traces, layout) {
-    const config = { responsive: true, displaylogo: false, scrollZoom: true };
-    Plotly.react(target, traces, layout, config).then(() => {
-      Plotly.relayout(target, {
-        "scene.aspectmode": "cube",
-        "scene.camera.eye": { x: 1.85, y: -1.85, z: 1.25 },
-        "scene.camera.up": { x: 0, y: 0, z: 1 },
-        "scene.camera.center": { x: 0, y: 0, z: 0 }
-      });
-      if (Plotly.Plots && Plotly.Plots.resize) Plotly.Plots.resize(target);
-    });
   }
 
   function renderTimePreview(d) {
@@ -498,17 +431,12 @@
       const layout = {
         title: d.useTimeAxis ? `${d.yCol} vs ${d.xCol} with z = ${d.tCol}` : `${d.xCol}, ${d.yCol}, ${d.zCol} ordered by ${d.tCol}`,
         margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: {
-          ...build3DScene(d.xCol, d.yCol, zTitle),
-          xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { title: zTitle, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
-        },
+        scene: build3DScene(d.xCol, d.yCol, zTitle),
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
-      renderPlotly3D(elPlot, traces, layout);
-      setMeta(`Showing ${d.x.length} valid points ordered by ${d.tCol}. Preview uses equal visual scaling and a fixed clear 3D camera.`);
+      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+      setMeta(`Showing ${d.x.length} valid points ordered by ${d.tCol}.`);
       return;
     }
 
@@ -519,8 +447,8 @@
     const layout = {
       title: `${d.yCol} vs ${d.xCol} ordered by ${d.tCol}`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: d.xCol, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-      yaxis: { title: d.yCol, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+      xaxis: { title: d.xCol, automargin: true },
+      yaxis: { title: d.yCol, automargin: true },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
@@ -539,17 +467,12 @@
       const layout = {
         title: `3D return map: ${d.varCol}(n), ${d.varCol}(n+${d.lag}), ${d.tCol}`,
         margin: { l: 10, r: 10, t: 56, b: 10 },
-        scene: {
-          ...build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
-          xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-          yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
-          zaxis: { title: d.tCol, automargin: true, range: resolveAxisRange(d.z, getAxisScaleOverrides().zMin, getAxisScaleOverrides().zMax) }
-        },
+        scene: build3DScene(`${d.varCol}(n)`, `${d.varCol}(n+${d.lag})`, d.tCol),
         legend: { orientation: "h", y: 1.06 },
         paper_bgcolor: "#fff"
       };
-      renderPlotly3D(elPlot, traces, layout);
-      setMeta(`Showing ${d.x.length} return-map points. Axes: x=${d.varCol}(n), y=${d.varCol}(n+${d.lag}), z=${d.tCol}. Preview uses equal visual scaling and a fixed clear 3D camera.`);
+      Plotly.react(elPlot, traces, layout, { responsive: true, displaylogo: false });
+      setMeta(`Showing ${d.x.length} return-map points. Axes: x=${d.varCol}(n), y=${d.varCol}(n+${d.lag}), z=${d.tCol}.`);
       return;
     }
 
@@ -587,8 +510,8 @@
     const layout = {
       title: `2D return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`,
       margin: { l: 62, r: 24, t: 56, b: 58 },
-      xaxis: { title: `${d.varCol}(n)`, automargin: true, range: resolveAxisRange(d.x, getAxisScaleOverrides().xMin, getAxisScaleOverrides().xMax) },
-      yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1, range: resolveAxisRange(d.y, getAxisScaleOverrides().yMin, getAxisScaleOverrides().yMax) },
+      xaxis: { title: `${d.varCol}(n)`, automargin: true },
+      yaxis: { title: `${d.varCol}(n+${d.lag})`, automargin: true, scaleanchor: "x", scaleratio: 1 },
       legend: { orientation: "h", y: 1.12 },
       paper_bgcolor: "#fff",
       plot_bgcolor: "#fff"
@@ -692,27 +615,32 @@
     return canvas;
   }
 
-  function drawBackground(ctx, w, h, title, scale = 1) {
+  function drawBackground(ctx, w, h, title) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#0f172a";
-    ctx.font = `700 ${Math.max(20, Math.round(22 * scale))}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(title, Math.round(w / 2), Math.round(34 * scale));
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#111827";
+    ctx.font = "600 20px Inter, Arial, sans-serif";
+    ctx.fillText(title, 18, 28);
   }
 
-  function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale = 1) {
-    const majorTicks = 5;
-    ctx.save();
-    ctx.strokeStyle = "rgba(15,23,42,0.10)";
-    ctx.lineWidth = Math.max(0.7, 0.9 * scale);
-    for (let k = 0; k < majorTicks; k++) {
-      const frac = k / (majorTicks - 1);
+  function drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax) {
+    ctx.strokeStyle = "#d1d5db";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ih);
+    ctx.lineTo(pad.l + iw, pad.t + ih);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    for (let k = 0; k <= 4; k++) {
+      const frac = k / 4;
       const xx = pad.l + frac * iw;
       const yy = pad.t + ih - frac * ih;
+      const xv = xmin + frac * (xmax - xmin);
+      const yv = ymin + frac * (ymax - ymin);
+      ctx.strokeStyle = "#f1f5f9";
       ctx.beginPath();
       ctx.moveTo(pad.l, yy);
       ctx.lineTo(pad.l + iw, yy);
@@ -721,178 +649,9 @@
       ctx.moveTo(xx, pad.t);
       ctx.lineTo(xx, pad.t + ih);
       ctx.stroke();
+      ctx.fillText(formatTick(yv), 8, yy + 4);
+      ctx.fillText(formatTick(xv), Math.max(pad.l - 12, xx - 12), pad.t + ih + 20);
     }
-
-    if (xmin < 0 && xmax > 0) {
-      const x0 = pad.l + ((0 - xmin) / ((xmax - xmin) || 1)) * iw;
-      ctx.strokeStyle = "rgba(0,0,0,0.55)";
-      ctx.lineWidth = Math.max(0.9, 1.05 * scale);
-      ctx.beginPath();
-      ctx.moveTo(x0, pad.t);
-      ctx.lineTo(x0, pad.t + ih);
-      ctx.stroke();
-    }
-    if (ymin < 0 && ymax > 0) {
-      const y0 = pad.t + ih - ((0 - ymin) / ((ymax - ymin) || 1)) * ih;
-      ctx.strokeStyle = "rgba(0,0,0,0.55)";
-      ctx.lineWidth = Math.max(0.9, 1.05 * scale);
-      ctx.beginPath();
-      ctx.moveTo(pad.l, y0);
-      ctx.lineTo(pad.l + iw, y0);
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = Math.max(1.25, 1.35 * scale);
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t);
-    ctx.lineTo(pad.l, pad.t + ih);
-    ctx.lineTo(pad.l + iw, pad.t + ih);
-    ctx.stroke();
-
-    ctx.fillStyle = "#374151";
-    ctx.font = `${Math.max(12, Math.round(12 * scale))}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "right";
-    for (let k = 0; k < majorTicks; k++) {
-      const frac = k / (majorTicks - 1);
-      const yy = pad.t + ih - frac * ih;
-      const yv = ymin + frac * (ymax - ymin);
-      ctx.fillText(formatTick(yv), pad.l - Math.round(12 * scale), yy + Math.round(4 * scale));
-    }
-    ctx.textAlign = "center";
-    for (let k = 0; k < majorTicks; k++) {
-      const frac = k / (majorTicks - 1);
-      const xx = pad.l + frac * iw;
-      const xv = xmin + frac * (xmax - xmin);
-      ctx.fillText(formatTick(xv), xx, pad.t + ih + Math.round(24 * scale));
-    }
-    ctx.restore();
-  }
-
-  function projectPoint3D(x, y, z, camera) {
-    // Mild perspective only; strong perspective compressed some 3D frames.
-    const cz = z + camera.distance;
-    const perspective = camera.distance / Math.max(1.5, cz);
-    const mix = 0.18;
-    const p = 1 + (perspective - 1) * mix;
-    return {
-      x: x * p,
-      y: y * p,
-      depth: p,
-      rawZ: z
-    };
-  }
-
-  function build3DProjectionScene(xs, ys, zs, width, height, ranges = {}) {
-    const [xmin, xmax] = resolveAxisRange(xs, ranges.xMin, ranges.xMax);
-    const [ymin, ymax] = resolveAxisRange(ys, ranges.yMin, ranges.yMax);
-    const [zmin, zmax] = resolveAxisRange(zs, ranges.zMin, ranges.zMax);
-    const norm01 = (v, lo, hi) => (v - lo) / ((hi - lo) || 1);
-
-    // Open-axis 3D projection for exported frames:
-    // z is vertical at the left, x is along the bottom, and y begins at
-    // the end of x. This creates three open axis lines with two joints.
-    const zBase = { x: width * 0.17, y: height * 0.74 };
-    const zEnd  = { x: width * 0.17, y: height * 0.10 };
-    const xEnd  = { x: width * 0.66, y: height * 0.74 };
-    const yEnd  = { x: width * 0.89, y: height * 0.43 };
-
-    const vx = { x: xEnd.x - zBase.x, y: xEnd.y - zBase.y };
-    const vy = { x: yEnd.x - xEnd.x, y: yEnd.y - xEnd.y };
-    const vz = { x: zEnd.x - zBase.x, y: zEnd.y - zBase.y };
-
-    function toScreen(x, y, z) {
-      const X = norm01(x, xmin, xmax);
-      const Y = norm01(y, ymin, ymax);
-      const Z = norm01(z, zmin, zmax);
-      return {
-        x: zBase.x + X * vx.x + Y * vy.x + Z * vz.x,
-        y: zBase.y + X * vx.y + Y * vy.y + Z * vz.y,
-        depth: 1 + 0.25 * Y + 0.12 * Z,
-        rawZ: Z
-      };
-    }
-
-    const points = xs.map((x, i) => toScreen(x, ys[i], zs[i]));
-    return {
-      points,
-      axisPoints: { origin: zBase, xEnd, yEnd, zEnd },
-      axisRanges: { xmin, xmax, ymin, ymax, zmin, zmax },
-      projectIndex(i) { return this.points[i]; }
-    };
-  }
-
-  function draw3DAxesTripod(ctx, scene, scale, labels) {
-    const { origin, xEnd, yEnd, zEnd } = scene.axisPoints;
-    const r = scene.axisRanges;
-
-    function drawLineWithArrow(p1, p2) {
-      ctx.strokeStyle = "#111827";
-      ctx.lineWidth = Math.max(2.0, 2.4 * scale);
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const ux = dx / len;
-      const uy = dy / len;
-      const px = -uy;
-      const py = ux;
-      const ah = Math.max(9, 10 * scale);
-      ctx.beginPath();
-      ctx.moveTo(p2.x, p2.y);
-      ctx.lineTo(p2.x - ux * ah + px * ah * 0.45, p2.y - uy * ah + py * ah * 0.45);
-      ctx.lineTo(p2.x - ux * ah - px * ah * 0.45, p2.y - uy * ah - py * ah * 0.45);
-      ctx.closePath();
-      ctx.fillStyle = "#111827";
-      ctx.fill();
-    }
-
-    function labelAlongAxis(text, p1, p2, along = 0.55, normalSign = 1, offset = 34) {
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const px = (-dy / len) * normalSign;
-      const py = (dx / len) * normalSign;
-      ctx.save();
-      ctx.fillStyle = "#111827";
-      ctx.font = `700 ${Math.max(14, Math.round(15 * scale))}px Inter, Arial, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, p1.x + dx * along + px * offset * scale, p1.y + dy * along + py * offset * scale);
-      ctx.restore();
-    }
-
-    function tickLabel(text, x, y, align = "center", baseline = "middle") {
-      ctx.save();
-      ctx.fillStyle = "#475569";
-      ctx.font = `600 ${Math.max(12, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-      ctx.textAlign = align;
-      ctx.textBaseline = baseline;
-      ctx.fillText(text, x, y);
-      ctx.restore();
-    }
-
-    ctx.save();
-    drawLineWithArrow(origin, zEnd);
-    drawLineWithArrow(origin, xEnd);
-    drawLineWithArrow(xEnd, yEnd);
-
-    // Axis titles are deliberately farther away from tick numbers.
-    labelAlongAxis(labels.zLabel, origin, zEnd, 0.55, -1, 46);
-    labelAlongAxis(labels.xLabel, origin, xEnd, 0.50, 1, 44);
-    labelAlongAxis(labels.yLabel, xEnd, yEnd, 0.58, -1, 50);
-
-    // Tick labels are offset away from axes and axis titles.
-    tickLabel(formatTick(r.zmin), origin.x - 20 * scale, origin.y + 8 * scale, "right", "middle");
-    tickLabel(formatTick(r.zmax), zEnd.x - 20 * scale, zEnd.y - 4 * scale, "right", "middle");
-    tickLabel(formatTick(r.xmin), origin.x, origin.y + 30 * scale, "center", "top");
-    tickLabel(formatTick(r.xmax), xEnd.x, xEnd.y + 30 * scale, "center", "top");
-    tickLabel(formatTick(r.ymin), xEnd.x + 18 * scale, xEnd.y + 20 * scale, "left", "top");
-    tickLabel(formatTick(r.ymax), yEnd.x + 20 * scale, yEnd.y - 4 * scale, "left", "middle");
-    ctx.restore();
   }
 
   function project3DFactory(xs, ys, zs, width, height) {
@@ -941,132 +700,23 @@
     };
   }
 
-  function getFrameScale(cfg) {
-    return Math.max(cfg.width / 640, cfg.height / 420);
-  }
-
-  function getFrameConfig() {
-    const raw = safeText(elExportResolution && elExportResolution.value) || "1280x840";
-    const match = raw.match(/^(\d+)x(\d+)$/i);
-    if (!match) return { width: 1280, height: 840 };
-    return { width: parseInt(match[1], 10), height: parseInt(match[2], 10) };
-  }
-
-  function getFrameAnnotationConfig(current) {
-    const titleOverride = safeText(elFrameTitle && elFrameTitle.value);
-    const xOverride = safeText(elFrameXLabel && elFrameXLabel.value);
-    const yOverride = safeText(elFrameYLabel && elFrameYLabel.value);
-    const zOverride = safeText(elFrameZLabel && elFrameZLabel.value);
-    const timeOverride = safeText(elFrameTimeLabel && elFrameTimeLabel.value);
-
-    if (current.mapType === "time") {
-      const defaultTitle = current.frameDim === "2d"
-        ? `${current.yCol} vs ${current.xCol}`
-        : (current.useTimeAxis
-          ? `${current.xCol}, ${current.yCol}, ${current.tCol}`
-          : `${current.xCol}, ${current.yCol}, ${current.zCol}`);
-      return {
-        title: titleOverride || defaultTitle,
-        xLabel: xOverride || current.xCol,
-        yLabel: yOverride || current.yCol,
-        zLabel: zOverride || (current.useTimeAxis ? current.tCol : current.zCol),
-        timeLabel: timeOverride || current.tCol
-      };
-    }
-
-    const defaultTitle = current.frameDim === "2d"
-      ? `Return map: ${current.varCol}(n) vs ${current.varCol}(n+${current.lag})`
-      : `Return map: ${current.varCol}(n), ${current.varCol}(n+${current.lag}), ${current.tCol}`;
-    return {
-      title: titleOverride || defaultTitle,
-      xLabel: xOverride || `${current.varCol}(n)`,
-      yLabel: yOverride || `${current.varCol}(n+${current.lag})`,
-      zLabel: zOverride || current.tCol,
-      timeLabel: timeOverride || current.tCol
-    };
-  }
-
-  function getAxisScaleOverrides() {
-    return {
-      xMin: optionalFloat(elAxisXMin && elAxisXMin.value),
-      xMax: optionalFloat(elAxisXMax && elAxisXMax.value),
-      yMin: optionalFloat(elAxisYMin && elAxisYMin.value),
-      yMax: optionalFloat(elAxisYMax && elAxisYMax.value),
-      zMin: optionalFloat(elAxisZMin && elAxisZMin.value),
-      zMax: optionalFloat(elAxisZMax && elAxisZMax.value)
-    };
-  }
-
-  function resolveAxisRange(values, minOverride, maxOverride) {
-    let [lo, hi] = getMinMax(values);
-    if (Number.isFinite(minOverride)) lo = minOverride;
-    if (Number.isFinite(maxOverride)) hi = maxOverride;
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
-    if (lo === hi) {
-      const pad = Math.abs(lo || 1) * 0.1 || 1;
-      return [lo - pad, hi + pad];
-    }
-    if (lo > hi) return [hi, lo];
-    return [lo, hi];
-  }
-
-  function drawFrameHeader(ctx, w, scale, leftText, rightText) {
-    ctx.save();
-    const y = Math.round(64 * scale);
-    ctx.fillStyle = "#475569";
-    ctx.font = `500 ${Math.max(11, Math.round(11.5 * scale))}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "left";
-    ctx.fillText(leftText, Math.round(26 * scale), y);
-    ctx.textAlign = "right";
-    ctx.fillText(rightText, w - Math.round(26 * scale), y);
-    ctx.restore();
-  }
-
-  function drawCenteredAxisLabel(ctx, text, x, y, scale) {
-    ctx.save();
-    ctx.fillStyle = "#111827";
-    ctx.font = `600 ${Math.max(13, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(text, x, y);
-    ctx.restore();
-  }
-
-  function drawVerticalAxisLabel(ctx, text, x, y, scale) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillStyle = "#111827";
-    ctx.font = `600 ${Math.max(13, Math.round(13 * scale))}px Inter, Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(text, 0, 0);
-    ctx.restore();
-  }
-
-  function render2DTimeFrame(d, idx, cfg, labels) {
+  function render2DTimeFrame(d, idx, cfg) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const scale = getFrameScale(cfg);
-    const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(108 * scale), r: Math.round(48 * scale), t: Math.round(96 * scale), b: Math.round(96 * scale) };
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const [xmin, xmax] = resolveAxisRange(d.x, ranges.xMin, ranges.xMax);
-    const [ymin, ymax] = resolveAxisRange(d.y, ranges.yMin, ranges.yMax);
+    const [xmin, xmax] = getMinMax(d.x);
+    const [ymin, ymax] = getMinMax(d.y);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
 
-    drawBackground(ctx, w, h, labels.title, scale);
-    drawFrameHeader(ctx, w, scale, `Frame ${Math.max(0, Math.min(idx, d.x.length - 1)) + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[Math.max(0, Math.min(idx, d.x.length - 1))])}`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
+    drawBackground(ctx, w, h, `${d.yCol} vs ${d.xCol}`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(pad.l, pad.t, iw, ih);
-    ctx.clip();
-
-    ctx.globalAlpha = 0.14;
-    ctx.strokeStyle = "#64748b";
-    ctx.lineWidth = Math.max(2.0, 2.2 * scale);
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -1077,8 +727,8 @@
     ctx.globalAlpha = 1;
 
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = Math.max(2.8, 3.0 * scale);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]), yy = yMap(d.y[i]);
@@ -1087,65 +737,62 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
-    ctx.fillStyle = "rgba(220,38,38,0.16)";
-    ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), Math.max(9, ps * 1.1), 0, Math.PI * 2);
-    ctx.fill();
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.5, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
-    drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
-    drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(d.xCol, w / 2 - 10, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(d.yCol, 0, 0);
+    ctx.restore();
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+
     return canvas;
   }
 
-  function render2DReturnFrame(d, idx, cfg, labels) {
+  function render2DReturnFrame(d, idx, cfg) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const scale = getFrameScale(cfg);
-    const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(108 * scale), r: Math.round(48 * scale), t: Math.round(96 * scale), b: Math.round(96 * scale) };
+    const pad = { l: 60, r: 24, t: 50, b: 48 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    const [xmin, xmax] = resolveAxisRange(d.x, ranges.xMin, ranges.xMax);
-    const [ymin, ymax] = resolveAxisRange(d.y, ranges.yMin, ranges.yMax);
+    const all = d.x.concat(d.y);
+    const [xmin, xmax] = getMinMax(all);
+    const [ymin, ymax] = getMinMax(all);
     const xMap = (v) => pad.l + ((v - xmin) / ((xmax - xmin) || 1)) * iw;
     const yMap = (v) => pad.t + ih - ((v - ymin) / ((ymax - ymin) || 1)) * ih;
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
 
-    drawBackground(ctx, w, h, labels.title, scale);
-    drawFrameHeader(ctx, w, scale, `Frame ${activeIdx + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`);
-    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax, scale);
+    drawBackground(ctx, w, h, `Return map: ${d.varCol}(n) vs ${d.varCol}(n+${d.lag})`);
+    drawAxesAndGrid(ctx, pad, iw, ih, xmin, xmax, ymin, ymax);
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(pad.l, pad.t, iw, ih);
-    ctx.clip();
-
-    ctx.strokeStyle = "rgba(75,85,99,0.70)";
-    ctx.lineWidth = Math.max(1.2, 1.4 * scale);
-    ctx.setLineDash([Math.max(6, 7 * scale), Math.max(4, 4 * scale)]);
+    ctx.strokeStyle = "#9ca3af";
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(xMap(xmin), yMap(xmin));
     ctx.lineTo(xMap(xmax), yMap(xmax));
     ctx.stroke();
     ctx.restore();
 
-    ctx.globalAlpha = 0.15;
+    ctx.globalAlpha = 0.18;
     ctx.fillStyle = "#2563eb";
     for (let i = 0; i < d.x.length; i++) {
       ctx.beginPath();
-      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), Math.max(2, 2.2 * scale), 0, Math.PI * 2);
+      ctx.arc(xMap(d.x[i]), yMap(d.y[i]), 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = Math.max(2.4, 2.6 * scale);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
       const xx = xMap(d.x[i]);
@@ -1154,80 +801,83 @@
     }
     ctx.stroke();
 
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
-    ctx.fillStyle = "rgba(220,38,38,0.16)";
-    ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), Math.max(9, ps * 1.1), 0, Math.PI * 2);
-    ctx.fill();
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
-    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.5, 0, Math.PI * 2);
+    ctx.arc(xMap(d.x[activeIdx]), yMap(d.y[activeIdx]), ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
-    drawCenteredAxisLabel(ctx, labels.xLabel, pad.l + iw / 2, h - Math.round(34 * scale), scale);
-    drawVerticalAxisLabel(ctx, labels.yLabel, Math.round(38 * scale), pad.t + ih / 2, scale);
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`${d.varCol}(n)`, w / 2 - 24, h - 12);
+    ctx.save();
+    ctx.translate(16, h / 2 + 10);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${d.varCol}(n+${d.lag})`, 0, 0);
+    ctx.restore();
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+
     return canvas;
   }
 
-  function render3DFrame(d, idx, cfg, labels) {
+  function render3DFrame(d, idx, cfg, title, xLabel, yLabel, zLabel) {
     const canvas = createCanvas(cfg);
     const ctx = canvas.getContext("2d");
     const w = canvas.width, h = canvas.height;
-    const scale = getFrameScale(cfg);
-    const ranges = getAxisScaleOverrides();
-    const pad = { l: Math.round(126 * scale), r: Math.round(126 * scale), t: Math.round(104 * scale), b: Math.round(136 * scale) };
+    const pad = { l: 24, r: 24, t: 50, b: 28 };
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
-    drawBackground(ctx, w, h, labels.title, scale);
+    drawBackground(ctx, w, h, title);
+    const proj = project3DFactory(d.x, d.y, d.z, iw, ih);
     const activeIdx = Math.max(0, Math.min(idx, d.x.length - 1));
-    drawFrameHeader(ctx, w, scale, `Frame ${activeIdx + 1}/${d.x.length}`, `${labels.timeLabel}: ${formatTick(d.t[activeIdx])}`);
-    const scene = build3DProjectionScene(d.x, d.y, d.z, iw, ih, ranges);
 
     ctx.save();
     ctx.translate(pad.l, pad.t);
-    ctx.beginPath();
-    ctx.rect(0, 0, iw, ih);
-    ctx.clip();
-    draw3DAxesTripod(ctx, scene, scale, labels);
 
-    ctx.globalAlpha = 0.14;
-    ctx.strokeStyle = "#94a3b8";
-    ctx.lineWidth = Math.max(2.0, 2.2 * scale);
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i < d.x.length; i++) {
-      const p = scene.projectIndex(i);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = Math.max(2.7, 3.0 * scale);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     for (let i = 0; i <= activeIdx; i++) {
-      const p = scene.projectIndex(i);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      const p = proj(i);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
 
-    const point = scene.projectIndex(activeIdx);
-    const ps = clampInt(elPointSize.value, 4, 24, 11) * Math.max(1, 0.95 * scale);
-    ctx.fillStyle = "rgba(220,38,38,0.18)";
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, Math.max(10, ps * 1.15), 0, Math.PI * 2);
-    ctx.fill();
+    const point = proj(activeIdx);
+    const ps = clampInt(elPointSize.value, 4, 24, 11);
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
     ctx.arc(point.x, point.y, ps * 0.55, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
+    ctx.fillStyle = "#374151";
+    ctx.font = "12px Inter, Arial, sans-serif";
+    ctx.fillText(`x = ${xLabel}`, 18, h - 34);
+    ctx.fillText(`y = ${yLabel}`, 18, h - 18);
+    ctx.fillText(`z = ${zLabel}`, 180, h - 18);
+    ctx.fillText(`frame ${activeIdx + 1}/${d.x.length}`, w - 130, 26);
+    if (d.t && d.t.length) ctx.fillText(`${d.tCol}: ${formatTick(d.t[activeIdx])}`, w - 170, 44);
+
     return canvas;
   }
 
   function buildFrameConfig() {
-    return getFrameConfig();
+    return { width: 640, height: 420 };
   }
 
   function buildFrameIndices(nPoints, nFrames) {
@@ -1244,7 +894,6 @@
     const cfg = buildFrameConfig();
     const nFramesInput = clampInt(elFrames.value, 8, 120, 40);
     const current = getCurrentSpec();
-    const labels = getFrameAnnotationConfig(current);
     let frameIndices = [];
     let drawFrame = null;
     let outName = "plot_frames.zip";
@@ -1255,29 +904,29 @@
 
     if (current.mapType === "time") {
       if (current.frameDim === "2d") {
-        drawFrame = (idx) => render2DTimeFrame(current, idx, cfg, labels);
+        drawFrame = (idx) => render2DTimeFrame(current, idx, cfg);
         outName = `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_map_frames.zip`;
       } else {
         const zLabel = current.useTimeAxis ? current.tCol : current.zCol;
         const title = current.useTimeAxis
           ? `${current.xCol}, ${current.yCol}, ${current.tCol}`
           : `${current.xCol}, ${current.yCol}, ${current.zCol}`;
-        drawFrame = (idx) => render3DFrame(current, idx, cfg, labels);
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, title, current.xCol, current.yCol, zLabel);
         outName = current.useTimeAxis
           ? `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_time_axis_frames.zip`
           : `${current.xCol.replace(/[^\w.-]+/g, "_")}_${current.yCol.replace(/[^\w.-]+/g, "_")}_${current.zCol.replace(/[^\w.-]+/g, "_")}_time_ordered_frames.zip`;
       }
     } else {
       if (current.frameDim === "2d") {
-        drawFrame = (idx) => render2DReturnFrame(current, idx, cfg, labels);
+        drawFrame = (idx) => render2DReturnFrame(current, idx, cfg);
         outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_lag${current.lag}_frames.zip`;
       } else {
-        drawFrame = (idx) => render3DFrame(current, idx, cfg, labels);
+        drawFrame = (idx) => render3DFrame(current, idx, cfg, `Return map: ${current.varCol}(n), ${current.varCol}(n+${current.lag}), ${current.tCol}`, `${current.varCol}(n)`, `${current.varCol}(n+${current.lag})`, current.tCol);
         outName = `${current.varCol.replace(/[^\w.-]+/g, "_")}_return_map_3d_lag${current.lag}_frames.zip`;
       }
     }
 
-    return { cfg, frameIndices, drawFrame, outName, labels };
+    return { cfg, frameIndices, drawFrame, outName };
   }
 
   function canvasToPngBlob(canvas) {
@@ -1325,7 +974,7 @@
 
       state.frameZipUrl = URL.createObjectURL(zipBlob);
       setFramesZipDownloadEnabled(true, state.frameZipUrl, spec.outName);
-      setFramesStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created at ${spec.cfg.width}×${spec.cfg.height}.`);
+      setFramesStatus(`Frames ZIP ready. ${spec.frameIndices.length} PNG frames created.`);
       if (elFramesZipDownload) elFramesZipDownload.click();
     } catch (err) {
       console.error(err);
@@ -1386,16 +1035,18 @@
   function lzwEncodeGIF(indices, minCodeSize) {
     const CLEAR = 1 << minCodeSize;
     const EOI = CLEAR + 1;
-    const CHUNK_RESET = 200;
-
-    let codeSize = minCodeSize + 1;
     let nextCode = EOI + 1;
-    let havePrev = false;
-    let runSinceClear = 0;
+    let codeSize = minCodeSize + 1;
+    let dict = new Map();
+
+    function resetDict() {
+      dict = new Map();
+      nextCode = EOI + 1;
+      codeSize = minCodeSize + 1;
+    }
 
     const bytes = [];
-    let cur = 0;
-    let bits = 0;
+    let cur = 0, bits = 0;
 
     function writeCode(code) {
       cur |= (code << bits);
@@ -1407,38 +1058,31 @@
       }
     }
 
-    function resetStreamState() {
-      codeSize = minCodeSize + 1;
-      nextCode = EOI + 1;
-      havePrev = false;
-      runSinceClear = 0;
-    }
-
+    resetDict();
     writeCode(CLEAR);
-    resetStreamState();
 
-    for (let i = 0; i < indices.length; i++) {
-      if (runSinceClear >= CHUNK_RESET) {
-        writeCode(CLEAR);
-        resetStreamState();
-      }
-
-      writeCode(indices[i]);
-
-      if (havePrev) {
+    let prefix = String(indices[0]);
+    for (let i = 1; i < indices.length; i++) {
+      const k = indices[i];
+      const key = prefix + "," + k;
+      if (dict.has(key)) {
+        prefix = key;
+      } else {
+        const outCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
+        writeCode(outCode);
         if (nextCode < 4096) {
-          nextCode += 1;
-          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize += 1;
+          dict.set(key, nextCode++);
+          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
         } else {
           writeCode(CLEAR);
-          resetStreamState();
+          resetDict();
         }
+        prefix = String(k);
       }
-
-      havePrev = true;
-      runSinceClear += 1;
     }
 
+    const finalCode = prefix.indexOf(",") === -1 ? Number(prefix) : dict.get(prefix);
+    writeCode(finalCode);
     writeCode(EOI);
     if (bits > 0) bytes.push(cur & 0xFF);
     return Uint8Array.from(bytes);
@@ -1520,7 +1164,6 @@
       setMergeStatus("ZIP import needs JSZip. Please refresh the page and try again.");
       return;
     }
-
     if (elMergeGifBtn) {
       elMergeGifBtn.disabled = true;
       elMergeGifBtn.textContent = "Merging…";
@@ -1535,49 +1178,41 @@
       const entries = Object.values(zip.files)
         .filter((f) => !f.dir && /\.(png|jpg|jpeg|webp)$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      if (!entries.length) throw new Error("No PNG/JPG/WebP frames were found in the ZIP file.");
 
-      if (!entries.length) throw new Error("No PNG/JPG/WebP frames found in the ZIP.");
-
-      const frameCanvases = [];
-      let width = 0;
-      let height = 0;
-
+      setMergeStatus(`Reading ${entries.length} frame images…`);
+      const images = [];
       for (let i = 0; i < entries.length; i++) {
-        setMergeStatus(`Loading frame ${i + 1} of ${entries.length}…`);
         const blob = await entries[i].async("blob");
-        const img = await blobToImage(blob);
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        if (!width && !height) {
-          width = w;
-          height = h;
-        } else if (w !== width || h !== height) {
-          throw new Error("All frames in the ZIP must have the same image size.");
-        }
-        const cvs = document.createElement("canvas");
-        cvs.width = width;
-        cvs.height = height;
-        const ctx = cvs.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        frameCanvases.push(cvs);
+        images.push(await blobToImage(blob));
+        setMergeStatus(`Loaded frame ${i + 1} of ${entries.length}…`);
         await yieldToUi();
       }
 
+      const width = images[0].naturalWidth || images[0].width;
+      const height = images[0].naturalHeight || images[0].height;
+      const canvases = images.map((img) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas;
+      });
+
       const fps = clampInt(elMergeFps && elMergeFps.value, 1, 20, 8);
       const delayCs = Math.max(2, Math.round(100 / fps));
-
-      setMergeStatus("Encoding GIF…");
-      const blob = encodeAnimatedGif(frameCanvases, width, height, delayCs, (cur, total) => {
-        const pct = Math.max(0, Math.min(100, Math.round(((cur + 1) / total) * 100)));
-        setMergeStatus(`Encoding GIF… ${pct}%`);
+      setMergeStatus("Writing merged GIF…");
+      const blob = encodeAnimatedGif(canvases, width, height, delayCs, (i, total) => {
+        if (i % 2 === 0 || i === total - 1) setMergeStatus(`Writing merged GIF… ${i + 1}/${total}`);
       });
 
       state.mergeGifUrl = URL.createObjectURL(blob);
-      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" style="max-width:100%; height:auto;" />`);
+      setMergePreview(`<img src="${state.mergeGifUrl}" alt="Merged GIF preview" />`);
       setMergeGifDownloadEnabled(true, state.mergeGifUrl, "merged_frames.gif");
-      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps, ${width}×${height}.`);
+      setMergeStatus(`Merged GIF ready. ${entries.length} frames at ${fps} fps.`);
     } catch (err) {
       console.error(err);
       setMergePreview("Could not merge that frame ZIP.");
@@ -1620,7 +1255,7 @@
     });
   });
 
-  [elLag, elPointSize, elAxisXMin, elAxisXMax, elAxisYMin, elAxisYMax, elAxisZMin, elAxisZMax].forEach((el) => {
+  [elLag, elPointSize].forEach((el) => {
     if (!el) return;
     el.addEventListener("input", () => renderCurrentPlot());
     el.addEventListener("change", () => renderCurrentPlot());
@@ -1632,7 +1267,7 @@
   setFramesZipDownloadEnabled(false);
   setMergeGifDownloadEnabled(false);
   setFramesStatus("Render the selected plot into PNG frames and download them as a ZIP file.");
-  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here. This version uses the built-in safe encoder.");
+  setMergeStatus("Upload a ZIP of PNG or JPG frames to merge them into a GIF here.");
   renderPreviewTable();
   updatePanels();
   renderCurrentPlot();
