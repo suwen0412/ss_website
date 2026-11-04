@@ -10,6 +10,7 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="assets/css/style.css" rel="stylesheet"/>
+<link href="assets/css/experience.css" rel="stylesheet"/>
 <!-- Minimal fallback styles to ensure Teaching shows even without timeline CSS -->
 </head>
 <body class="research-site">
@@ -25,6 +26,7 @@
 <a href="#toolkit">Toolkit</a>
 <a href="#contact">Contact</a>
 </nav>
+<a class="explore-mode-link" href="game.html"><span aria-hidden="true">✧</span> Explore in 3D</a>
 <button aria-controls="siteNavigation" aria-expanded="false" aria-label="Toggle menu" class="menu-toggle" id="menuToggle" type="button">☰</button>
 </div>
 </header>
@@ -41,6 +43,7 @@
 <a class="btn primary" href="#research">Explore Research</a>
 <a class="btn" href="#publications">Read Publications</a>
 </div>
+<div class="garden-invitation"><span class="garden-invite-icon" aria-hidden="true">✳</span><div><p>Take the scenic route through my work.</p><a href="game.html">Enter the Ion Garden — a 3D research adventure ↗</a></div></div>
 </div>
 <div aria-label="Image carousel" aria-roledescription="carousel" class="carousel" tabindex="0">
 <div class="slides">
@@ -74,17 +77,17 @@
 <article class="card">
 <h3>Kirchhoff’s law for memristors</h3>
 <p>Extends Kirchhoff’s laws to include memristive elements, capturing the dynamic relationship between voltage, current, and memory-dependent resistance in circuit analysis.</p>
-<a class="card-link" href="#">Project page →</a>
+<a class="card-link" href="game.html?landmark=circuits&amp;open=1">Research field note →</a>
 </article>
 <article class="card">
 <h3>Construct neural network</h3>
 <p>Designs a neural network model to emulate memristor behavior, capturing its nonlinear current–voltage dynamics and memory-dependent resistance for circuit prediction and optimization.</p>
-<a class="card-link" href="#">Project page →</a>
+<a class="card-link" href="game.html?landmark=geometry&amp;open=1">Research field note →</a>
 </article>
 <article class="card">
 <h3>MD simulation and nanopipette simulation</h3>
 <p>Simulates ionic transport and electrochemical behavior in nanopipettes to study nanoscale sensing, flow, and conductance mechanisms.</p>
-<a class="card-link" href="#">Project page →</a>
+<a class="card-link" href="game.html?landmark=geometry&amp;open=1">Research field note →</a>
 </article>
 </div>
 </div>
@@ -281,6 +284,7 @@
 <script defer="" src="assets/js/toolkit.js"></script>
 <!-- Your site JS (menu, carousel, etc.) -->
 <script src="assets/js/main.js"></script>
+<script src="assets/js/experience.js"></script>
 <noscript>
 </noscript>
 </body>
