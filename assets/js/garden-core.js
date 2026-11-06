@@ -24,8 +24,31 @@ export class Adventure {
  autoTarget(){if(this.player.respawn>0)return null;return this.targets().filter(t=>dist2(t.p,this.player)<23).sort((a,b)=>dist2(a.p,this.player)-dist2(b.p,this.player))[0]||null;}
  jump(){if(this.player.y<.015&&this.player.respawn<=0){this.player.vy=8.4;this.events.push({type:'jump'});}}
  dash(dx,dz){const p=this.player;if(p.dashCooldown>0||p.respawn>0)return;const l=Math.hypot(dx,dz);p.dashX=l?dx/l:Math.sin(p.yaw);p.dashZ=l?dz/l:Math.cos(p.yaw);p.dash=.22;p.dashCooldown=1.45;p.invulnerable=Math.max(p.invulnerable,.3);this.events.push({type:'dash'});}
- shoot(){if(this.fireCooldown>0||this.player.respawn>0)return;const p=this.player,target=this.autoTarget();const start={x:p.x+Math.sin(p.yaw)*.35,y:p.y+1.05,z:p.z+Math.cos(p.yaw)*.35};let dx=Math.sin(p.yaw),dy=0,dz=Math.cos(p.yaw);if(target){dx=target.p.x-start.x;dy=target.p.y-start.y;dz=target.p.z-start.z;const l=Math.hypot(dx,dy,dz);dx/=l;dy/=l;dz/=l;p.yaw=Math.atan2(dx,dz);}
-  this.projectiles.push({id:++this.serial,...start,vx:dx*25,vy:dy*25,vz:dz*25,life:1.35,friendly:true});this.fireCooldown=.23;this.shots++;this.events.push({type:'shoot'});
+ shoot(aim){
+  if(this.fireCooldown>0||this.player.respawn>0)return;
+  const player=this.player;
+  const destination=aim??this.autoTarget()?.p;
+  if(destination&&dist2(destination,player)>.05){
+   player.yaw=Math.atan2(destination.x-player.x,destination.z-player.z);
+  }
+  const forwardX=Math.sin(player.yaw),forwardZ=Math.cos(player.yaw);
+  const start={
+   x:player.x+forwardX*.39+forwardZ*.34,
+   y:player.y+1.16,
+   z:player.z+forwardZ*.39-forwardX*.34
+  };
+  const dx=destination?destination.x-start.x:forwardX;
+  const dy=destination?destination.y-start.y:0;
+  const dz=destination?destination.z-start.z:forwardZ;
+  const length=Math.hypot(dx,dy,dz);
+  if(length<.05)return;
+  const speed=32/length;
+  this.projectiles.push({
+   id:++this.serial,...start,vx:dx*speed,vy:dy*speed,vz:dz*speed,life:1.15,friendly:true
+  });
+  this.fireCooldown=.23;
+  this.shots++;
+  this.events.push({type:'shoot'});
  }
  enemyShot(x,y,z,angle=0,speed=4.8){const p=this.player,a=Math.atan2(p.x-x,p.z-z)+angle;this.projectiles.push({id:++this.serial,x,y,z,vx:Math.sin(a)*speed,vy:0,vz:Math.cos(a)*speed,life:4.5,friendly:false});}
  damage(){const p=this.player;if(p.invulnerable>0||p.respawn>0)return;p.health--;p.invulnerable=1.25;this.events.push({type:'hurt',health:p.health});if(p.health<=0){p.respawn=1.15;this.projectiles.length=0;this.rings.length=0;this.events.push({type:'recharge'});}}
@@ -36,7 +59,7 @@ export class Adventure {
   p.invulnerable=Math.max(0,p.invulnerable-dt);p.dashCooldown=Math.max(0,p.dashCooldown-dt);p.dash=Math.max(0,p.dash-dt);
   if(p.respawn>0){p.respawn-=dt;if(p.respawn<=0){this.travel(this.active>=0?this.active:0);p.health=5;}return;}
   let dx=input.x||0,dz=input.z||0;const l=Math.hypot(dx,dz);if(l>1){dx/=l;dz/=l;}
-  if(input.jump)this.jump();if(input.dash)this.dash(dx,dz);if(input.fire)this.shoot();
+  if(input.jump)this.jump();if(input.dash)this.dash(dx,dz);if(input.fire)this.shoot(input.aim);
   const speed=6.5;p.vx+=(dx*speed-p.vx)*(1-Math.exp(-dt*13));p.vz+=(dz*speed-p.vz)*(1-Math.exp(-dt*13));
   if(p.dash>0){p.x+=p.dashX*17*dt;p.z+=p.dashZ*17*dt;}else{p.x+=p.vx*dt;p.z+=p.vz*dt;}
   if(l>.1&&!input.fire)p.yaw=Math.atan2(dx,dz);

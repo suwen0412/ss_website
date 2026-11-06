@@ -1,0 +1,117 @@
+.toolkit-video-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 10px 6px 7px;
+  border: 1px solid #dfcbd2;
+  border-radius: 9px;
+  background: #faf2f4;
+  color: #742946;
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tool-card > .toolkit-video-button { margin: 0 0 16px; }
+.toolkit-video-button:hover { background: #f2e3e9; }
+.toolkit-video-button:focus-visible, .toolkit-tutorial-close:focus-visible {
+  outline: 2px solid #742946;
+  outline-offset: 3px;
+}
+.toolkit-video-icon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #742946;
+  color: white;
+  font-size: 11px;
+}
+.toolkit-video-duration {
+  padding-left: 9px;
+  border-left: 1px solid #e4ccd5;
+  color: #72535e;
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+}
+.toolkit-video-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px 17px;
+  margin: 0 0 16px;
+  border: 1px solid #e7ddd9;
+  border-radius: 10px;
+  background: #fbf8f6;
+}
+.toolkit-video-callout p { margin: 2px 0 0; font-size: .9rem; }
+.toolkit-tutorial-dialog {
+  box-sizing: border-box;
+  width: min(940px, calc(100% - 28px));
+  max-height: calc(100dvh - 28px);
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #ded5d1;
+  border-radius: 15px;
+  background: #fbf8f6;
+  color: #242728;
+  box-shadow: 0 20px 72px #2f232755;
+}
+.toolkit-tutorial-dialog::backdrop { background: #2a2228b5; }
+.toolkit-tutorial-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 19px 22px 15px;
+}
+.toolkit-tutorial-kicker {
+  margin: 0 0 5px;
+  color: #742946;
+  font-size: .67rem;
+  font-weight: 700;
+  letter-spacing: .11em;
+}
+.toolkit-tutorial-header h2 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: clamp(1.18rem, 2.6vw, 1.75rem);
+  line-height: 1.25;
+}
+.toolkit-tutorial-close {
+  flex: 0 0 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #ded5d1;
+  border-radius: 50%;
+  background: #fff;
+  color: #45343d;
+  font: 24px/1 sans-serif;
+  cursor: pointer;
+}
+.toolkit-tutorial-video {
+  display: block;
+  width: 100%;
+  max-height: 63dvh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #252024;
+}
+.toolkit-tutorial-resources {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 22px 6px;
+  font-size: .88rem;
+}
+.toolkit-tutorial-resources a { color: #742946; }
+.toolkit-tutorial-steps { margin: 5px 22px 17px; font-size: .88rem; }
+.toolkit-tutorial-steps summary { cursor: pointer; font-weight: 600; }
+.toolkit-tutorial-steps ol { margin: 8px 0 0; padding-left: 22px; }
+.toolkit-tutorial-steps li + li { margin-top: 5px; }

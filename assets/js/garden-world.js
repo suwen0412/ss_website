@@ -11,7 +11,8 @@ export class GardenWorld {
   const sun=new T.DirectionalLight(0xffedd3,3.1);sun.position.set(-28,50,26);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-62;sun.shadow.camera.right=62;sun.shadow.camera.top=62;sun.shadow.camera.bottom=-62;sun.shadow.camera.far=150;sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;this.scene.add(sun);this.scene.add(new T.AmbientLight(0xffffff,.18));
   this.makeIsland();regions.forEach((r,i)=>this.makeRegion(r,i));this.makeScenery();this.setCharacter('boy','sage');
   this.playerShadow=this.mesh(new T.CircleGeometry(.65,20),this.mat(0x526a48,{transparent:true,opacity:.16,depthWrite:false}),[0,.14,0]);this.playerShadow.rotation.x=-Math.PI/2;this.playerShadow.castShadow=false;this.playerShadow.userData.softwareLayer=-40;this.scene.add(this.playerShadow);
-  this.targetRing=this.torus(1,.035,0xe8df9e,48,6);this.targetRing.rotation.x=-Math.PI/2;this.targetRing.visible=false;this.scene.add(this.targetRing);
+  this.aimRay=new T.Raycaster();
+  this.aimGround=new T.Plane(new T.Vector3(0,1,0),-.05);
  }
  mat(color,options={}){const key=color+JSON.stringify(options);if(!this.materials.has(key))this.materials.set(key,new T.MeshStandardMaterial({color,roughness:.92,flatShading:true,...options}));return this.materials.get(key);}
  geo(key,make){if(!this.geometries.has(key))this.geometries.set(key,make());return this.geometries.get(key);}
@@ -117,15 +118,51 @@ export class GardenWorld {
   const legs=[];for(const s of [-1,1]){const limb=new T.Group();limb.position.set(s*.13,.77,0);limb.add(this.cylinder(.09,.1,.48,0x6b7f70,[0,-.24,0],7));limb.add(this.box(.22,.14,.33,0x536e5c,[0,-.53,.055]));g.add(limb);legs.push(limb);}
   const arms=[];for(const s of [-1,1]){const limb=new T.Group();limb.position.set(s*.29,1.2,0);const sleeve=this.cylinder(.09,.1,.35,suit,[0,-.15,0],7);limb.add(sleeve);limb.add(this.ball(.085,skin,[0,-.38,.025],1));g.add(limb);arms.push(limb);}
   const pack=this.box(.38,.4,.2,0xc9b888,[0,1,-.28]);g.add(pack);g.add(this.box(.12,.21,.06,0xe0d5af,[0,1,-.41]));
-  const blaster=this.cylinder(.09,.12,.36,0xd6c993,[.32,.93,.23],8);blaster.rotation.x=Math.PI/2;g.add(blaster);const tip=this.ball(.09,0xece8ad,[.32,.93,.43],1,{emissive:0xa4b67c,emissiveIntensity:.5});g.add(tip);g.add(this.rod([0,1.3,.24],[0,.76,.28],.018,0xe1dfbd));
+  const bow=new T.Group();
+  bow.name='ionBow';
+  bow.position.set(0,-.38,.025);
+  bow.rotation.y=.42;
+  const upper=[-.22,.66,-.16],lower=[-.22,-.66,-.16];
+  bow.add(this.curve([lower,[-.04,-.52,-.08],[.09,-.27,.02],[.13,0,.10],[.09,.27,.02],[-.04,.52,-.08],upper],.043,0xab753d));
+  bow.add(this.rod(lower,upper,.013,0xf3dfaa));
+  bow.add(this.cylinder(.057,.057,.24,0x406857,[.12,0,.09],8));
+  bow.add(this.ball(.063,0xe8c676,upper,1),this.ball(.063,0xe8c676,lower,1));
+  arms[1].add(bow);
+  g.userData.bow=bow;
+  g.add(this.rod([0,1.3,.24],[0,.76,.28],.018,0xe1dfbd));
   g.userData.legs=legs;g.userData.arms=arms;g.scale.setScalar(1.15);this.playerModel=g;this.scene.add(g);
   const halo=this.torus(.48,.018,0xe5ddaa,28,4);halo.rotation.x=Math.PI/2;halo.position.y=.03;g.add(halo);
+ }
+ aimAt(screen,targets){
+  this.aimRay.setFromCamera(new T.Vector2(2*screen.x-1,1-2*screen.y),this.camera);
+  const ray=this.aimRay.ray,point=new T.Vector3(),sphere=new T.Sphere();
+  let target=null,closest=Infinity;
+  for(const candidate of targets){
+   sphere.center.set(candidate.p.x,candidate.p.y,candidate.p.z);
+   sphere.radius=candidate.radius+.13;
+   const hit=ray.intersectSphere(sphere,point);
+   if(hit&&ray.origin.distanceToSquared(hit)<closest){
+    closest=ray.origin.distanceToSquared(hit);
+    target=candidate;
+   }
+  }
+  if(target)return{point:target.p,target};
+  return{point:ray.intersectPlane(this.aimGround,point)||ray.at(45,point),target:null};
+ }
+ projectAim(point){
+  const projected=new T.Vector3(point.x,point.y,point.z).project(this.camera);
+  if(projected.z<-1||projected.z>1||Math.abs(projected.x)>1||Math.abs(projected.y)>1)return null;
+  return{x:(projected.x+1)/2,y:(1-projected.y)/2};
  }
  burst(x,y,z,color=0xe5d59b,count=14){for(let i=0;i<count;i++){if(this.particles.length>100)break;const m=this.ball(.06+(i%3)*.02,color,[x,y,z],0);m.castShadow=false;this.scene.add(m);this.particles.push({mesh:m,v:new T.Vector3(Math.sin(i*5.2)*2,1+(i%4)*.5,Math.cos(i*5.2)*2),life:.65+(i%3)*.12});}}
  resize(){const r=this.canvas.getBoundingClientRect();this.renderer.setSize(r.width,r.height,false);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();}
  render(state,view,dt,selecting=false){
   const t=state.time,p=state.player,model=this.playerModel;this.playerShadow.position.set(p.x,.14,p.z);this.playerShadow.scale.setScalar(1+p.y*.12);model.position.set(p.x,p.y,p.z);model.rotation.y=selecting?view.theta:p.yaw;const speed=Math.hypot(p.vx,p.vz);const walk=Math.sin(t*12)*Math.min(speed*.09,.55);model.userData.legs.forEach((m,i)=>m.rotation.x=(i%2?-1:1)*walk);model.userData.arms.forEach((m,i)=>m.rotation.x=(i%2?1:-1)*walk*.6);model.visible=p.invulnerable>0&&p.health<5?Math.floor(t*12)%2===0:true;
   if(selecting){model.userData.legs.forEach(m=>m.rotation.x=0);model.userData.arms.forEach(m=>m.rotation.x=.05);}
+  const bowArm=model.userData.arms[1];
+  bowArm.rotation.x=-1.02-(state.fireCooldown>.15?.08:0);
+  model.userData.bow.rotation.x=-bowArm.rotation.x;
+  model.userData.bow.rotation.z=-.18;
   for(let i=0;i<this.models.length;i++){
    const m=this.models[i],q=state.quests[i],r=this.regions[i],clear=state.cleared.has(r.id),active=state.active===i;
    m.arch.material=clear?this.mat(0x95ba7b,{emissive:0x638f47,emissiveIntensity:.2}):this.mat(0xc6b68b);m.door.material=clear?this.mat(0xb9dc9e,{transparent:true,opacity:.2,side:T.DoubleSide,depthWrite:false}):this.mat(0xded6a0,{transparent:true,opacity:.12,side:T.DoubleSide,depthWrite:false});
@@ -135,11 +172,32 @@ export class GardenWorld {
    m.droneModels.forEach((d,j)=>{const target=q.drones[j];d.visible=active&&q.phase==='drones'&&target.hp>0;if(d.visible){d.position.set(target.x,target.y,target.z);d.rotation.y=Math.atan2(p.x-target.x,p.z-target.z);d.userData.body.material.emissive.setHex(target.flash>0?0xe8deb0:0x000000);}});
    const b=q.boss;m.boss.visible=active&&q.phase==='boss'&&b.hp>0;if(m.boss.visible){m.boss.position.set(b.x,b.y,b.z);m.boss.rotation.y=Math.atan2(p.x-b.x,p.z-b.z);m.boss.userData.orbit.rotation.z=t*.5;m.boss.userData.body.material.emissive.setHex(b.flash>0?0xe8deb0:0x000000);}
   }
-  const ids=new Set();for(const b of state.projectiles){ids.add(b.id);let m=this.bolts.get(b.id);if(!m){m=new T.Group();const core=this.ball(b.friendly?.12:.2,b.friendly?0xf7e6a3:0xd6a0a4,[0,0,0],1,{emissive:b.friendly?0xc0b766:0xa35a64,emissiveIntensity:.7});core.castShadow=false;m.add(core);const glow=this.ball(b.friendly?.23:.3,b.friendly?0xf1e2a3:0xe8b1af,[0,0,0],1,{transparent:true,opacity:.18,depthWrite:false});glow.castShadow=false;m.add(glow);this.scene.add(m);this.bolts.set(b.id,m);}m.position.set(b.x,b.y,b.z);}
+  const ids=new Set();
+  for(const projectile of state.projectiles){
+   ids.add(projectile.id);
+   let model=this.bolts.get(projectile.id);
+   if(!model){
+    model=new T.Group();
+    if(projectile.friendly){
+     model.name='ionArrow';
+     model.add(this.cylinder(.032,.032,.64,0xcba561));
+     model.add(this.cylinder(0,.10,.23,0xffe7a7,[0,.41,0],6,{emissive:0xd3a64a,emissiveIntensity:.5}));
+     const fletching=this.box(.21,.15,.034,0x659883,[0,-.27,0]);
+     model.add(fletching);
+     model.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(projectile.vx,projectile.vy,projectile.vz).normalize());
+    }else{
+     model.add(this.ball(.2,0xd6a0a4,[0,0,0],1,{emissive:0xa35a64,emissiveIntensity:.7}));
+     model.add(this.ball(.3,0xe8b1af,[0,0,0],1,{transparent:true,opacity:.18,depthWrite:false}));
+    }
+    model.traverse(mesh=>{mesh.castShadow=false;});
+    this.scene.add(model);
+    this.bolts.set(projectile.id,model);
+   }
+   model.position.set(projectile.x,projectile.y,projectile.z);
+  }
   for(const[id,m]of this.bolts)if(!ids.has(id)){this.scene.remove(m);this.bolts.delete(id);}
   const rings=new Set();for(const r of state.rings){rings.add(r.id);let m=this.ringModels.get(r.id);if(!m){m=this.torus(1,.025,0xdbb295,64,5);m.rotation.x=-Math.PI/2;this.scene.add(m);this.ringModels.set(r.id,m);}m.position.set(r.x,.12,r.z);m.scale.setScalar(r.radius);m.material=r.time<0?this.mat(0xe0c5a6,{transparent:true,opacity:.35,depthWrite:false}):this.mat(0xdcb09d,{emissive:0xa76d52,emissiveIntensity:.25});}
   for(const[id,m]of this.ringModels)if(!rings.has(id)){this.scene.remove(m);this.ringModels.delete(id);}
-  const target=state.autoTarget();this.targetRing.visible=!!target&&!selecting;if(target){this.targetRing.position.set(target.p.x,.15,target.p.z);this.targetRing.scale.setScalar(target.type==='boss'?1.9:1);this.targetRing.rotation.z=t*.8;}
   for(let i=this.particles.length-1;i>=0;i--){const part=this.particles[i];part.life-=dt;part.mesh.position.addScaledVector(part.v,dt);part.v.y-=3*dt;part.mesh.scale.multiplyScalar(Math.max(.9,1-dt*.9));if(part.life<=0){this.scene.remove(part.mesh);this.particles.splice(i,1);}}
   const focus=new T.Vector3(p.x,selecting?1.5:1.1,p.z);this.look.lerp(focus,this.hasCamera?1-Math.exp(-dt*8):1);const dist=selecting?view.distance*.75:view.distance;this.goal.set(this.look.x+Math.sin(view.theta)*Math.cos(view.elevation)*dist,this.look.y+Math.sin(view.elevation)*dist,this.look.z+Math.cos(view.theta)*Math.cos(view.elevation)*dist);this.camera.position.lerp(this.goal,this.hasCamera?1-Math.exp(-dt*8):1);this.camera.lookAt(this.look);this.hasCamera=true;
   this.renderer.render(this.scene,this.camera);

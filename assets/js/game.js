@@ -6,6 +6,9 @@ let saved={};try{const value=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}');if
 let character=saved.character==='girl'?'girl':'boy',jacket=['sage','rose','blue'].includes(saved.jacket)?saved.jacket:'sage';
 let state=new Adventure(regions,saved),world,paused=false,selecting=false,shooting=false,dragging=false,dragX=0,dragY=0,lastFrame=performance.now(),pendingJump=false,pendingDash=false,pendingFire=false,rewardIndex=0,sound=false,audioCtx,toastTimer,hurtTimer,uiTimer=0;
 const view={theta:0,elevation:.62,distance:24},keys=new Set(),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const crosshair=$('aimCrosshair');
+const defaultAim={x:.5,y:.43};
+let pointerAim=null,touchStart=null;
 const sectionTitles={home:'Suwen Shi',research:'Research',publications:'Publications',teaching:'Teaching',news:'News',toolkit:'Toolkit',contact:'Contact'};
 const modal=()=>document.querySelector('dialog[open]');
 const blocked=()=>paused||selecting||!!modal()||document.hidden;
@@ -13,7 +16,12 @@ function persist(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({...state.sn
 function announce(text){$('announcement').textContent=text;}
 function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3800);announce(text);}
 function tone(freq=600,duration=.13){if(!sound||!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(freq*1.15,audioCtx.currentTime+duration);g.gain.setValueAtTime(.025,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration+.1);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration+.1);}
-function clearInput(){keys.clear();shooting=false;pendingJump=pendingDash=pendingFire=false;}
+function clearInput(){
+ keys.clear();
+ shooting=dragging=false;
+ pendingJump=pendingDash=pendingFire=false;
+ pointerAim=touchStart=null;
+}
 async function showDialog(d){clearInput();if(document.fullscreenElement)await document.exitFullscreen();if(!d.open)d.showModal();}
 function closeDialog(d){if(d.open)d.close();}
 for(const d of document.querySelectorAll('dialog')){d.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>d.close()));d.addEventListener('close',()=>{clearInput();lastFrame=performance.now();if(!modal()&&!selecting)canvas.focus({preventScroll:true});});d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}});}
@@ -32,7 +40,7 @@ function startMission(index){closeDialog($('missionDialog'));state.activate(inde
 function openBrief(index){
  const r=regions[index],q=state.quests[index],clear=state.cleared.has(r.id);
  $('briefTag').textContent=clear?`UNLOCKED · ${r.tag}`:`MISSION ${String(index+1).padStart(2,'0')} · ${r.nav.toUpperCase()}`;$('briefTitle').textContent=r.name;
- $('briefContent').innerHTML=clear?`<div class="brief-emblem">✧</div><p class="brief-copy">${r.intro}</p><p class="brief-body">${r.body}</p>${r.status?`<p class="brief-status">${r.status}</p>`:''}${r.id==='toolkit'?'<div class="tool-shortcuts"><button data-tool="converter" type="button">DTA → Excel</button><button data-tool="tool2.html" type="button">Equation visualizer ↗</button><button data-tool="tool3.html" type="button">Time-series plotter ↗</button></div>':''}<div class="brief-actions"><button id="briefAction" class="dark-button" type="button">${r.action} ↗</button><button id="briefReturn" class="text-button" type="button">Keep exploring →</button></div>`:`<div class="brief-emblem">${String(index+1).padStart(2,'0')}</div><p class="brief-copy">A little chaos is hiding a good story.</p><p class="brief-body">Restore the signal at ${r.name} to unlock ${r.section==='research'?`research aim ${index}`:r.nav.toLowerCase()}.</p><ol class="brief-steps"><li><span>01</span> Find the three golden memory cores ${q.cores.size?`(${q.cores.size}/3 found)`:''}</li><li><span>02</span> Shoot ${r.drones} drifting noise drones</li><li><span>03</span> Defeat ${r.boss}, the mini guardian</li></ol><p class="brief-status">Unlimited ion pulses and generous auto-aim. Hold F or click to shoot. Jump over shockwaves, dash away from danger, and recharge nearby if you run out of energy.</p><div class="brief-actions"><button id="briefAction" class="dark-button" type="button">${q.cores.size||q.phase!=='collect'?'Continue':'Start'} mission →</button><button id="briefReturn" class="text-button" type="button">Wander a little longer</button></div>`;
+ $('briefContent').innerHTML=clear?`<div class="brief-emblem">✧</div><p class="brief-copy">${r.intro}</p><p class="brief-body">${r.body}</p>${r.status?`<p class="brief-status">${r.status}</p>`:''}${r.id==='toolkit'?'<div class="tool-shortcuts"><button data-tool="converter" type="button">DTA → Excel</button><button data-tool="tool2.html" type="button">Equation visualizer ↗</button><button data-tool="tool3.html" type="button">Time-series plotter ↗</button></div>':''}<div class="brief-actions"><button id="briefAction" class="dark-button" type="button">${r.action} ↗</button><button id="briefReturn" class="text-button" type="button">Keep exploring →</button></div>`:`<div class="brief-emblem">${String(index+1).padStart(2,'0')}</div><p class="brief-copy">A little chaos is hiding a good story.</p><p class="brief-body">Restore the signal at ${r.name} to unlock ${r.section==='research'?`research aim ${index}`:r.nav.toLowerCase()}.</p><ol class="brief-steps"><li><span>01</span> Find the three golden memory cores ${q.cores.size?`(${q.cores.size}/3 found)`:''}</li><li><span>02</span> Shoot ${r.drones} drifting noise drones</li><li><span>03</span> Defeat ${r.boss}, the mini guardian</li></ol><p class="brief-status">Aim the crosshair and hold F or click to fire your ion bow. Keyboard aiming helps when the pointer is outside the arena. Jump over shockwaves, dash away from danger, and recharge nearby if you run out of energy.</p><div class="brief-actions"><button id="briefAction" class="dark-button" type="button">${q.cores.size||q.phase!=='collect'?'Continue':'Start'} mission →</button><button id="briefReturn" class="text-button" type="button">Wander a little longer</button></div>`;
  $('briefAction').addEventListener('click',()=>{if(clear){closeDialog($('missionDialog'));openContent(r.section);}else startMission(index);});$('briefReturn').addEventListener('click',()=>closeDialog($('missionDialog')));
  document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{closeDialog($('missionDialog'));openContent('toolkit',b.dataset.tool==='converter'?undefined:b.dataset.tool);}));showDialog($('missionDialog'));
 }
@@ -60,7 +68,7 @@ $('confirmResetButton').addEventListener('click',()=>{state=new Adventure(region
 $('soundButton').addEventListener('click',()=>{sound=!sound;if(sound){try{audioCtx ||= new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume();tone(500);}catch(_){sound=false;}}$('soundButton').setAttribute('aria-label',sound?'Turn sound off':'Turn sound on');$('soundButton').title=sound?'Sound on':'Sound off';$('soundButton').style.opacity=sound?'1':'.55';});
 function setPaused(value){paused=value;clearInput();$('pauseOverlay').hidden=!value;$('pauseButton').setAttribute('aria-label',value?'Resume adventure':'Pause adventure');lastFrame=performance.now();if(value)$('resumeButton').focus();else if(!selecting)canvas.focus({preventScroll:true});}
 $('pauseButton').addEventListener('click',()=>{if(!selecting)setPaused(!paused);});$('resumeButton').addEventListener('click',()=>setPaused(false));
-function resetCamera(){view.theta=0;view.elevation=.62;view.distance=24;}
+function resetCamera(){view.theta=0;view.elevation=.62;view.distance=24;pointerAim=null;}
 $('cameraResetButton').addEventListener('click',resetCamera);
 $('fullscreenButton').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await stage.requestFullscreen();}catch(_){toast('Fullscreen is not available here. You can keep exploring in this view.');}});
 $('rewardOpenButton').addEventListener('click',()=>{closeDialog($('rewardDialog'));openContent(regions[rewardIndex].section);});$('rewardContinueButton').addEventListener('click',()=>closeDialog($('rewardDialog')));
@@ -76,9 +84,53 @@ function controlsKey(e,down){
 }
 document.addEventListener('keydown',e=>controlsKey(e,true));document.addEventListener('keyup',e=>controlsKey(e,false));window.addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{clearInput();lastFrame=performance.now();});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointerdown',e=>{if(blocked())return;e.preventDefault();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);if(e.button===2||e.pointerType==='touch'){dragging=true;dragX=e.clientX;dragY=e.clientY;}else if(e.button===0){shooting=true;pendingFire=true;}});
-canvas.addEventListener('pointermove',e=>{if(!dragging||blocked())return;view.theta-=(e.clientX-dragX)*.007;view.elevation=Math.max(.3,Math.min(1.14,view.elevation+(e.clientY-dragY)*.004));dragX=e.clientX;dragY=e.clientY;});
-for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,()=>{dragging=false;shooting=false;});
+function aimFromPointer(event){
+ const bounds=canvas.getBoundingClientRect();
+ return{
+  x:Math.max(0,Math.min(1,(event.clientX-bounds.left)/bounds.width)),
+  y:Math.max(0,Math.min(1,(event.clientY-bounds.top)/bounds.height))
+ };
+}
+canvas.addEventListener('pointerdown',event=>{
+ if(blocked())return;
+ event.preventDefault();
+ canvas.focus({preventScroll:true});
+ canvas.setPointerCapture(event.pointerId);
+ if(event.button===2||event.pointerType==='touch'){
+  dragging=true;
+  dragX=event.clientX;
+  dragY=event.clientY;
+  pointerAim=null;
+  touchStart=event.pointerType==='touch'?{x:dragX,y:dragY}:null;
+ }else if(event.button===0){
+  pointerAim=aimFromPointer(event);
+  shooting=true;
+  pendingFire=true;
+ }
+});
+canvas.addEventListener('pointermove',event=>{
+ if(blocked())return;
+ if(dragging){
+  if(touchStart&&Math.hypot(event.clientX-touchStart.x,event.clientY-touchStart.y)<5)return;
+  touchStart=null;
+  view.theta-=(event.clientX-dragX)*.007;
+  view.elevation=Math.max(.3,Math.min(1.14,view.elevation+(event.clientY-dragY)*.004));
+  dragX=event.clientX;
+  dragY=event.clientY;
+ }else if(event.pointerType!=='touch'){
+  pointerAim=aimFromPointer(event);
+ }
+});
+canvas.addEventListener('pointerleave',event=>{
+ if(event.pointerType!=='touch'&&!shooting)pointerAim=null;
+});
+for(const event of ['pointerup','pointercancel','lostpointercapture']){
+ canvas.addEventListener(event,pointer=>{
+  if(event==='pointerup'&&touchStart&&!blocked())pointerAim=aimFromPointer(pointer);
+  touchStart=null;
+  dragging=shooting=false;
+ });
+}
 canvas.addEventListener('wheel',e=>{if(blocked())return;e.preventDefault();view.distance=Math.max(12,Math.min(36,view.distance+e.deltaY*.012));},{passive:false});
 for(const b of document.querySelectorAll('[data-touch]')){b.addEventListener('pointerdown',e=>{e.preventDefault();if(blocked())return;b.setPointerCapture(e.pointerId);const k=b.dataset.touch;keys.add(k);if(k===' ')pendingJump=true;if(k==='shift')pendingDash=true;if(k==='f')pendingFire=true;});for(const event of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(event,()=>keys.delete(b.dataset.touch));}
 function drawMap(){const c=$('miniMap'),x=c.getContext('2d'),cx=170,cy=130,k=2.1;x.clearRect(0,0,c.width,c.height);x.beginPath();x.arc(cx,cy,113,0,Math.PI*2);x.fillStyle='#dde6d1';x.fill();x.strokeStyle='#c2d0af';x.lineWidth=1.3;x.stroke();x.strokeStyle='#c4c9a6';x.lineWidth=2;for(const r of regions){x.beginPath();x.moveTo(cx,cy+7*k);x.lineTo(cx+r.x*k,cy+r.z*k);x.stroke();}for(let i=0;i<regions.length;i++){const r=regions[i],xx=cx+r.x*k,yy=cy+r.z*k,clear=state.cleared.has(r.id);if(state.active===i){x.beginPath();x.arc(xx,yy,11,0,Math.PI*2);x.strokeStyle='#b8a06b';x.lineWidth=2;x.stroke();}x.beginPath();x.arc(xx,yy,6,0,Math.PI*2);x.fillStyle=clear?'#8eaa71':'#c0b28f';x.fill();x.strokeStyle='#f3f3e6';x.lineWidth=2;x.stroke();x.fillStyle='#7c8d6b';x.textAlign='center';x.font='11px Arial';x.fillText(String(i),xx,yy-11);}const p=state.player;x.save();x.translate(cx+p.x*k,cy+p.z*k);x.rotate(-p.yaw);x.beginPath();x.moveTo(0,7);x.lineTo(-5,-5);x.lineTo(5,-5);x.closePath();x.fillStyle='#3b6447';x.fill();x.strokeStyle='#f2f1df';x.lineWidth=1.5;x.stroke();x.restore();}
@@ -98,7 +150,6 @@ function updateUI(){
   $('missionSteps').innerHTML=clear||q?'<li class="done">Memory cores restored</li><li class="done">Noise drones cleared</li><li class="done">Mini guardian defeated</li>':'<li>Collect 3 memory cores</li><li>Clear the noise drones</li><li>Defeat the mini guardian</li>';$('missionHint').innerHTML=clear||q?'Press <kbd>E</kbd> to explore the unlocked story':'Walk to a landmark · Press <kbd>E</kbd>';
  }
  const boss=!!q&&q.phase==='boss'&&Math.hypot(p.x-ar.x,p.z-ar.z)<20&&!selecting;$('bossHud').hidden=!boss;if(boss){$('bossName').textContent=ar.boss;$('bossFill').style.width=`${q.boss.hp/ar.bossHP*100}%`;$('bossHint').textContent=ar.pattern==='pulse'?'Jump over the glowing shockwaves.':ar.pattern==='charge'?'Dash away when the guardian lunges.':'Keep moving between the slow pulses.';}
- const target=state.autoTarget();$('aimHint').hidden=!target||selecting||!!modal();$('aimText').textContent=target?.type==='boss'?'GUARDIAN LOCKED · HOLD F':'AUTO-AIM READY · HOLD F';
  $('interactButton').hidden=selecting||paused||!!modal()||n.distance>=9||p.respawn>0;$('interactText').textContent=clear?`Explore ${r.nav}`:`${state.active===n.index?'Continue':'Start'} ${r.name} mission`;
  document.querySelectorAll('.journey-stop').forEach((b,i)=>{const done=state.cleared.has(regions[i].id);b.classList.toggle('current',n.index===i);b.classList.toggle('cleared',done);b.querySelector('.stop-dot').textContent=done?'✓':'◇';if(n.index===i)b.setAttribute('aria-current','location');else b.removeAttribute('aria-current');});
  canvas.dataset.playerX=p.x.toFixed(2);canvas.dataset.playerY=p.y.toFixed(2);canvas.dataset.playerZ=p.z.toFixed(2);canvas.dataset.health=String(p.health);canvas.dataset.activeMission=ar?.id||'';canvas.dataset.phase=q?.phase||'idle';canvas.dataset.unlocked=String(state.cleared.size);canvas.dataset.coreCount=String(state.coreCount);canvas.dataset.cameraTheta=view.theta.toFixed(2);canvas.dataset.cameraDistance=view.distance.toFixed(1);canvas.dataset.shots=String(state.shots);canvas.dataset.hits=String(state.hits);
@@ -116,8 +167,51 @@ function processEvents(){for(const e of state.events.splice(0)){
   persist();rewardIndex=e.index;const r=regions[e.index];world.burst(r.x,2,r.z,0xdfe2a0,48);tone(800,.3);$('rewardTitle').textContent=`${r.nav} unlocked.`;$('rewardDescription').textContent=`You restored the signal at ${r.name} and defeated ${r.boss}. A new part of my website is ready to explore.`;$('rewardOpenButton').textContent=`Explore ${r.nav.toLowerCase()} ↗`;showDialog($('rewardDialog'));announce(`Mission complete. ${r.nav} section unlocked.`);
  }
 }}
-function frame(ts){const dt=Math.min(Math.max((ts-lastFrame)/1000,0),1);lastFrame=ts;if(!blocked()&&world){if(keys.has('q'))view.theta+=dt*1.25;if(keys.has('c'))view.theta-=dt*1.25;const f=(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),r=(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);const input={x:-Math.sin(view.theta)*f+Math.cos(view.theta)*r,z:-Math.cos(view.theta)*f-Math.sin(view.theta)*r,jump:pendingJump,dash:pendingDash,fire:pendingFire||keys.has('f')||shooting};let remaining=dt;while(remaining>0){const step=Math.min(remaining,1/90);state.update(step,input);input.jump=input.dash=false;input.fire=keys.has('f')||shooting;remaining-=step;}pendingJump=pendingDash=pendingFire=false;processEvents();}
- if(world){world.render(state,view,Math.min(dt,.1),selecting);uiTimer+=dt;if(uiTimer>.08){updateUI();uiTimer=0;}}requestAnimationFrame(frame);
+function updateCrosshair(){
+ crosshair.hidden=blocked()||dragging||state.player.respawn>0;
+ stage.classList.toggle('aiming',!crosshair.hidden&&!!pointerAim);
+ if(crosshair.hidden)return;
+ const target=pointerAim?world.aimAt(pointerAim,state.targets()).target:state.autoTarget();
+ const point=pointerAim||(target&&world.projectAim(target.p))||defaultAim;
+ crosshair.style.left=`${point.x*100}%`;
+ crosshair.style.top=`${point.y*100}%`;
+ crosshair.classList.toggle('on-target',!!target);
+}
+function frame(ts){
+ const dt=Math.min(Math.max((ts-lastFrame)/1000,0),1);
+ lastFrame=ts;
+ if(!blocked()&&world){
+  if(keys.has('q'))view.theta+=dt*1.25;
+  if(keys.has('c'))view.theta-=dt*1.25;
+  const forward=(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0);
+  const right=(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
+  const input={
+   x:-Math.sin(view.theta)*forward+Math.cos(view.theta)*right,
+   z:-Math.cos(view.theta)*forward-Math.sin(view.theta)*right,
+   jump:pendingJump,dash:pendingDash,fire:pendingFire||keys.has('f')||shooting
+  };
+  if(input.fire){
+   if(pointerAim)input.aim=world.aimAt(pointerAim,state.targets()).point;
+   else if(!state.autoTarget())input.aim=world.aimAt(defaultAim,[]).point;
+  }
+  let remaining=dt;
+  while(remaining>0){
+   const step=Math.min(remaining,1/90);
+   state.update(step,input);
+   input.jump=input.dash=false;
+   input.fire=keys.has('f')||shooting;
+   remaining-=step;
+  }
+  pendingJump=pendingDash=pendingFire=false;
+  processEvents();
+ }
+ if(world){
+  world.render(state,view,Math.min(dt,.1),selecting);
+  updateCrosshair();
+  uiTimer+=dt;
+  if(uiTimer>.08){updateUI();uiTimer=0;}
+ }
+ requestAnimationFrame(frame);
 }
 characterUI();updateUI();const query=new URLSearchParams(location.search),initial=regions.findIndex(r=>r.id===query.get('landmark'));if(initial>=0)state.travel(initial);
 if(!saved.character)choose();else if(initial>=0&&query.get('open')==='1')openBrief(initial);

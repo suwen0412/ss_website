@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:08.000
+Step 1. Choose a CSV or Excel file with x and y columns. This example uses time_s and current_nA.
+
+00:00:08.000 --> 00:00:18.000
+Step 2. Enter a*exp(-x/b), click Detect params, and set a to 2.4 and b to 0.8. Choose the CSV as the x source.
+
+00:00:18.000 --> 00:00:30.000
+Step 3. Click Render / Update plots. Move the b slider to compare the equation with the data.

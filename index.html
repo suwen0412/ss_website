@@ -12,6 +12,8 @@
 <link href="assets/css/style.css" rel="stylesheet"/>
 <link href="assets/css/experience.css" rel="stylesheet"/>
 <!-- Minimal fallback styles to ensure Teaching shows even without timeline CSS -->
+<link rel="stylesheet" href="assets/css/tool-tutorials.css">
+<script defer src="assets/js/tool-tutorials.js"></script>
 </head>
 <body class="research-site">
 <header class="site-header">
@@ -176,6 +178,10 @@
   Convert common Gamry <code>.DTA</code> electrochemistry files (CV/CA/CP/EIS, etc.) into an Excel
   workbook directly in your browser. Your file is processed locally on your device (no upload).
 </p>
+<button class="toolkit-video-button" type="button" data-tutorial="dta" aria-label="Watch Gamry DTA to Excel tutorial">
+  <span class="toolkit-video-icon" aria-hidden="true">▶</span>
+  <span>Watch tutorial</span><span class="toolkit-video-duration">0:30</span>
+</button>
 <div aria-label="Gamry DTA converter" class="toolkit-ui" role="group">
 <label class="toolkit-label">
 <span>Select a .DTA file</span>
@@ -211,6 +217,10 @@
   To keep this page uncluttered, the visualizer opens in a separate tab/window.
   Everything runs locally in your browser (no uploads).
 </p>
+<button class="toolkit-video-button" type="button" data-tutorial="equation" aria-label="Watch Equation + Data Visualizer tutorial">
+  <span class="toolkit-video-icon" aria-hidden="true">▶</span>
+  <span>Watch tutorial</span><span class="toolkit-video-duration">0:30</span>
+</button>
 <ul class="bullets">
 <li><strong>Equations:</strong> exp/sin/cos/tan/log/sqrt/abs, powers (<code>^</code>), constants (<code>pi</code>, <code>e</code>)</li>
 <li><strong>Data:</strong> upload one or more Excel/CSV files (two columns: x,y) for comparison</li>
@@ -228,6 +238,10 @@
     Upload an Excel or CSV file in the browser, choose your columns, and make one of two plot types:
     a lag plot using variable(n) versus variable(n+skip), or a variable trajectory plot in 2D/3D.
   </p>
+<button class="toolkit-video-button" type="button" data-tutorial="trajectory" aria-label="Watch Time-Series Plotter and GIF Builder tutorial">
+  <span class="toolkit-video-icon" aria-hidden="true">▶</span>
+  <span>Watch tutorial</span><span class="toolkit-video-duration">0:30</span>
+</button>
 <ul class="bullets">
 <li><strong>Upload first:</strong> choose a sheet, then select the time/variable columns</li>
 <li><strong>Plot type A:</strong> plot <code>variable(n)</code> versus <code>variable(n+skip)</code> as a lag plot</li>

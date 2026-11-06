@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:08.000
+Step 1. Click Choose File and select a Gamry .DTA export. Try tutorial_cv.DTA to follow along.
+
+00:00:08.000 --> 00:00:18.000
+Step 2. Choose whether to include metadata, then click Convert to .xlsx.
+
+00:00:18.000 --> 00:00:30.000
+Step 3. Open the downloaded workbook. CURVE contains the measurements, and Header contains the optional metadata.

@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:08.000
+Step 1. Click Use example data. For your own Excel or CSV file, choose a sheet and the time column.
+
+00:00:08.000 --> 00:00:18.000
+Step 2. Select 2D and Time-dependent map. Choose Variable 1 for x and Variable 2 for y.
+
+00:00:18.000 --> 00:00:30.000
+Step 3. Set the frame count and speed, then click Create GIF. Preview the animation and click Download GIF.
